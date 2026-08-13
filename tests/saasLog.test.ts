@@ -3,7 +3,8 @@ import {
 	parseSaasLogLine,
 	isSaasStackContinuation,
 	normalizePlaceholder,
-	groupSaasEvents
+	groupSaasEvents,
+	summarizeSaasEvent
 } from "../src/parsers/saasLog.js";
 
 describe("parseSaasLogLine", () => {
@@ -58,6 +59,44 @@ describe("parseSaasLogLine", () => {
 
 		expect(parseSaasLogLine(line)).toBeNull();
 		expect(isSaasStackContinuation(line)).toBe(true);
+	});
+});
+
+describe("summarizeSaasEvent", () => {
+	it("extracts JSON payloads, raw SQL, tenant route and exceptions from an event", () => {
+		const events = groupSaasEvents([
+			"2026-08-13 13:03:48.547  INFO SKA00 app1 1 2832996880440973688 nosrt notimecost 0.0.0.0 nouser nodomain nouri --- [task-DealwithdatalinkTask-64] c.s.s.i.p.service.PosSaleInterfaceImpl   : PosSaletoIvn:{\"saledate\":\"2026-06-15\",\"datatype\":\"I\",\"eshopflag\":\"f\",\"terid\":\"16\"}",
+			"2026-08-13 13:03:48.547  INFO SKA00 app1 1 2832996880440973688 nosrt notimecost 0.0.0.0 nouser nodomain nouri --- [task-DealwithdatalinkTask-64] c.s.s.i.p.service.PosSaleInterfaceImpl   : :SELECT aa.warehouse_id id,bb.warehousecode from set_ter_define aa,set_inv_warehouse bb where aa.id=16",
+			"2026-08-13 13:03:48.565  INFO SKA00 app1 1 2832996880440973688 nosrt notimecost 0.0.0.0 nouser nodomain nouri --- [task-DealwithdatalinkTask-64] c.s.s.i.t.service.TransInterfaceImpl     : SK00001000_非登录用户>> 库存统一接口:{\"autopost\":\"N\",\"transtype\":\"$POS\",\"detaillist\":[{\"dutyid\":1123266}]}",
+			"2026-08-13 13:03:48.576  INFO SKA00 app1 1 2832996880440973688 nosrt notimecost 0.0.0.0 nouser nodomain nouri --- [task-DealwithdatalinkTask-64] c.s.s.i.p.service.PosSaleInterfaceImpl   : pos回调函数>>{\"MSG\":\"单据日期:2026-06-15不合法!输入日期应该在2026-07-01到2026-08-31\",\"STATUS\":\"ERR\"}",
+			"2026-08-13 13:03:48.576  INFO SKA00 app1 1 2832996880440973688 nosrt notimecost 0.0.0.0 nouser nodomain nouri --- [task-DealwithdatalinkTask-64] com.sw.saas.tenant.TenantServiceImpl     : tenant:196, schema:sk00001000",
+			"2026-08-13 13:03:48.576  INFO SKA00 app1 1 2832996880440973688 nosrt notimecost 0.0.0.0 nouser nodomain nouri --- [task-DealwithdatalinkTask-64] com.sw.saas.datasource.SchemaDataSource  : current con info:sk00001000,null,2832996880440973688,647383448",
+			"java.sql.SQLException: 单据日期:2026-06-15不合法!输入日期应该在2026-07-01到2026-08-31",
+			"\tat com.sw.saas.inv.possale.service.PosSaleInterfaceImpl.PosSaletoIvn(PosSaleInterfaceImpl.java:622)"
+		]);
+
+		const summary = summarizeSaasEvent(events[0]);
+
+		expect(summary.payloads).toHaveLength(3);
+		expect(summary.payloads[0]).toMatchObject({
+			label: "PosSaletoIvn",
+			body: { saledate: "2026-06-15", datatype: "I", eshopflag: "f", terid: "16" }
+		});
+		expect(summary.payloads[2]).toMatchObject({
+			label: "pos回调函数",
+			body: {
+				MSG: "单据日期:2026-06-15不合法!输入日期应该在2026-07-01到2026-08-31",
+				STATUS: "ERR"
+			}
+		});
+		expect(summary.sql[0].sql).toContain("SELECT aa.warehouse_id");
+		expect(summary.tenant).toMatchObject({
+			cus: "196",
+			schema: "sk00001000",
+			currentSchema: "sk00001000",
+			currentTraceId: "2832996880440973688"
+		});
+		expect(summary.exceptions[0].type).toBe("java.sql.SQLException");
 	});
 });
 
