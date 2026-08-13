@@ -12,7 +12,7 @@ import {
 import type { AppConfig, ServerConfig } from "../src/server/config.js";
 
 /**
- * Connect a test client to a fresh server instance over an in-memory pair.
+ * 通过内存内 transport 对，将测试客户端连接到新建的服务实例。
  */
 async function connectClient(deps: Parameters<typeof createServer>[0] = {}): Promise<Client> {
 	const server = createServer(deps);
@@ -57,7 +57,7 @@ describe("search_logs input validation", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Full-pipeline tests with a scripted (mock) SSH layer.
+// 使用脚本化（mock）SSH 层的全管道测试。
 // ---------------------------------------------------------------------------
 
 const serverConfig: ServerConfig = {
@@ -83,7 +83,7 @@ function fakeConfig(): AppConfig {
 	};
 }
 
-/** Timestamp "now" formatted like the log lines we serve below. */
+/** 按下方日志行的格式生成 "当前时刻" 的时间戳。 */
 function nowStamp(offsetMinutes = 0): string {
 	const d = new Date(Date.now() - offsetMinutes * 60_000);
 	const pad = (n: number) => String(n).padStart(2, "0");
@@ -102,7 +102,7 @@ function streamOf(stdout: string, exitCode: number, stderr = ""): ExecStreamLike
 	return emitter;
 }
 
-/** Build the tail window: the match lives at `matchLine`, `extra` lines follow it. */
+/** 构造 tail 窗口：匹配行位于 `matchLine`，`extra` 行紧随其后。 */
 function buildWindow(matchLine: number, extra: string[]): string {
 	const lines: string[] = [];
 	for (let i = 1; i <= matchLine + extra.length; i++) {
@@ -179,7 +179,7 @@ describe("search_logs full pipeline (mock SSH)", () => {
 		expect(payload.query.contextBefore).toBe(3);
 		expect(payload.query.contextAfter).toBe(5);
 
-		// matches
+		// 匹配项
 		expect(payload.matches).toHaveLength(1);
 		expect(payload.matches[0].server).toBe("shipping-prod-01");
 		expect(payload.matches[0].logFile).toBe("/data/logs/shipping/app.log");
@@ -188,31 +188,31 @@ describe("search_logs full pipeline (mock SSH)", () => {
 		expect(payload.matches[0].contextBefore.length).toBeGreaterThan(0);
 		expect(payload.matches[0].contextAfter.length).toBeGreaterThan(0);
 
-		// request extraction
+		// 请求提取
 		expect(payload.requestParameters).not.toBeNull();
 		expect(payload.requestParameters[0].parameters.orderId).toBe("SO-1001");
-		// sensitive value masked at the exit
+		// 敏感值在出口处被脱敏
 		expect(JSON.stringify(payload)).not.toContain("hunter2");
 
-		// response not present in fixture → null, never fabricated
+		// fixture 中不存在响应 → null，绝不捏造
 		expect(payload.response).toBeNull();
 
-		// MyBatis SQL reconstructed
+		// MyBatis SQL 还原成功
 		expect(payload.sql).not.toBeNull();
 		expect(payload.sql[0].sqlReconstructionSuccess).toBe(true);
 		expect(payload.sql[0].reconstructedSql).toBe(
 			"SELECT * FROM shipping_order WHERE order_no = 'SO-1001'"
 		);
 
-		// exception extracted (the stack trace from context is among extractions)
+		// 异常被提取（上下文中的堆栈也在提取结果中）
 		expect(payload.exceptions).not.toBeNull();
 		expect(JSON.stringify(payload.exceptions)).toContain("java.lang.NullPointerException");
 
-		// Bearer token masked everywhere
+		// Bearer 令牌在所有位置被脱敏
 		expect(JSON.stringify(payload)).not.toContain("abc.def.ghi");
 		expect(JSON.stringify(payload)).toContain("Bearer ****");
 
-		// three-section analysis present
+		// 三段式分析存在
 		expect(payload.analysis.confirmedFacts.length).toBeGreaterThan(0);
 		expect(payload.analysis.possibleCauses.length).toBeGreaterThan(0);
 		expect(payload.analysis.recommendations.length).toBeGreaterThan(0);

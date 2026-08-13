@@ -38,9 +38,9 @@ function streamOf(stdout: string, exitCode: number, stderr = ""): ExecStreamLike
 }
 
 /**
- * Scripted transport: answers commands based on their shape.
- * - `ls -1t` → file listing
- * - `tail ... | grep -n -F ...` → grep matches for app.log only
+ * 脚本化 transport：按命令形态返回应答。
+ * - `ls -1t` → 文件列表
+ * - `tail ... | grep -n -F ...` → 仅对 app.log 返回 grep 匹配
  */
 function scriptedExecutor(opts: {
 	files?: string;
@@ -132,7 +132,7 @@ describe("searchSingleServer", () => {
 
 	it("records an error when the log directory is unreadable but keeps searching", async () => {
 		const executor = scriptedExecutor({ files: "" });
-		// Simulate ls failing hard (exit 2) by overriding via custom factory
+		// 通过自定义工厂覆盖，模拟 ls 硬失败（exit 2）
 		const failingExecutor = new SshExecutor(serverConfig, limits, new ConcurrencyLimiter(1), async () => ({
 			exec(_command, callback) {
 				callback(undefined, streamOf("", 2, "ls: cannot access '/data/logs/shipping': Permission denied"));

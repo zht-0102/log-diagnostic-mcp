@@ -37,12 +37,12 @@ describe("loadConfig", () => {
 		expect(config.servers[0].name).toBe("app-prod-01");
 		expect(config.servers[0].auth.type).toBe("private_key");
 
-		// port default
+		// 端口默认值
 		expect(config.servers[0].port).toBe(22);
-		// explicit port
+		// 显式指定的端口
 		expect(config.servers[1].port).toBe(2222);
 
-		// limits: provided values kept, others defaulted
+		// limits：保留提供的值，其余取默认值
 		expect(config.limits.maxServers).toBe(3);
 		expect(config.limits.timeoutSeconds).toBe(15);
 		expect(config.limits.maxLines).toBe(3000);

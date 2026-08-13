@@ -1,19 +1,19 @@
 /**
- * Shell safety utilities.
+ * Shell 安全工具。
  *
- * Defense in depth against command injection:
- * 1. User-supplied values (keyword, paths...) pass a strict whitelist.
- * 2. Every argument is single-quote escaped when building remote commands.
- * 3. Commands are assembled only from fixed, read-only templates.
+ * 针对命令注入的纵深防御：
+ * 1. 用户提供的值（keyword、路径等）必须通过严格白名单校验。
+ * 2. 拼装远程命令时，每个参数都做单引号转义。
+ * 3. 命令只能由固定的只读模板拼装而成。
  */
 
 /**
- * Whitelist for log search keywords and similar user input.
- * Allows unicode letters/digits plus a small set of safe symbols.
+ * 日志搜索关键词等用户输入的白名单。
+ * 允许 Unicode 字母/数字以及一小组安全符号。
  */
 const KEYWORD_PATTERN = /^[\p{L}\p{N}_.:@#\- /[\](){}=+,.*"'\\]{1,200}$/u;
 
-/** Validate a user-supplied keyword. Throws when it fails the whitelist. */
+/** 校验用户提供的关键词，未通过白名单时抛错。 */
 export function validateKeyword(keyword: string): string {
 	if (!KEYWORD_PATTERN.test(keyword)) {
 		throw new Error(
@@ -24,9 +24,9 @@ export function validateKeyword(keyword: string): string {
 }
 
 /**
- * Validate a remote log path from configuration.
- * Absolute POSIX path; no shell metacharacters that could break out of quoting
- * even if quoting were ever bypassed. Newlines are always rejected.
+ * 校验配置中的远程日志路径。
+ * 必须是 POSIX 绝对路径；即使引号转义被绕过，也不允许出现
+ * 可能逃逸的 shell 元字符。换行符一律拒绝。
  */
 const LOG_PATH_PATTERN = /^\/[\w./\-]+$/;
 
@@ -43,15 +43,15 @@ export function validateLogPath(path: string): string {
 }
 
 /**
- * POSIX shell single-quote escaping.
- * Wraps the value in single quotes and escapes embedded single quotes
- * as the sequence '\''. The result is always a single shell word.
+ * POSIX shell 单引号转义。
+ * 用单引号包裹整个值，并把内部的单引号转义为 '\'' 序列。
+ * 结果始终是一个完整的 shell 词元。
  */
 export function shellQuote(value: string): string {
 	return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
-/** Commands that must never appear in anything this server executes. */
+/** 本服务器执行的任何命令中都绝不允许出现的命令黑名单。 */
 const FORBIDDEN_COMMANDS = [
 	"rm",
 	"mv",
@@ -79,7 +79,7 @@ const FORBIDDEN_COMMANDS = [
 	"tee"
 ] as const;
 
-/** Guard used before running any command template; throws on violation. */
+/** 执行任何命令模板前的拦截守卫；命中黑名单时抛错。 */
 export function assertNotForbidden(command: string): void {
 	const firstWord = command.trim().split(/\s+/)[0] ?? "";
 	if ((FORBIDDEN_COMMANDS as readonly string[]).includes(firstWord)) {

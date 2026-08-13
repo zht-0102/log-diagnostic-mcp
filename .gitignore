@@ -17,3 +17,7 @@ config/servers.yaml
 # Logs
 *.log
 coverage/
+
+# Ad-hoc query results may contain real log data — never commit
+query-result.json
+scripts/one-shot-query.ts

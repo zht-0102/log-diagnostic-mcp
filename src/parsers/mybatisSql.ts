@@ -1,26 +1,26 @@
 /**
- * MyBatis SQL log parsing and reconstruction.
+ * MyBatis SQL 日志解析与还原。
  *
- * Handles the common MyBatis stdout log pair:
+ * 处理常见的 MyBatis stdout 日志对：
  *   ... DEBUG ... ==>  Preparing: SELECT * FROM shipping_order WHERE id = ?
  *   ... DEBUG ... ==>  Parameters: 123(Long), 'abc'(String)
  *
- * Supported parameter types (MVP): String, Integer, Long, Boolean,
- * BigDecimal, Double, Float, Short, Byte, Date, Timestamp, null.
+ * 支持的参数类型（MVP）：String、Integer、Long、Boolean、
+ * BigDecimal、Double、Float、Short、Byte、Date、Timestamp、null。
  *
- * When reconstruction cannot be done reliably, the result is flagged with
- * `sqlReconstructionSuccess: false` — never fabricated.
+ * 无法可靠还原时，结果会以 `sqlReconstructionSuccess: false` 标记 ——
+ * 绝不凭空捏造。
  */
 
 export interface SqlExtraction {
-	/** The SQL template with `?` placeholders, as logged. */
+	/** 带 `?` 占位符的 SQL 模板，即日志中记录的原文。 */
 	preparingSql: string | null;
-	/** Raw parameter string, e.g. `123(Long), 'abc'(String)`. */
+	/** 原始参数字符串，如 `123(Long), 'abc'(String)`。 */
 	rawParameters: string | null;
-	/** SQL with parameters substituted, or null when reconstruction failed. */
+	/** 代入参数后的 SQL；还原失败时为 null。 */
 	reconstructedSql: string | null;
 	sqlReconstructionSuccess: boolean;
-	/** Human-readable note when reconstruction failed. */
+	/** 还原失败时的人类可读说明。 */
 	reconstructionNote: string | null;
 }
 
@@ -28,9 +28,9 @@ const PREPARING_MARKER = "Preparing:";
 const PARAMETERS_MARKER = "Parameters:";
 
 /**
- * Parse a MyBatis `Parameters:` value into typed entries.
- * Format: `value(Type)` separated by ", ". null parameters appear as `null`.
- * Returns null when the string doesn't look like a MyBatis parameter list.
+ * 将 MyBatis `Parameters:` 的值解析为带类型的条目。
+ * 格式：以 ", " 分隔的 `value(Type)`；null 参数直接显示为 `null`。
+ * 字符串不像 MyBatis 参数列表时返回 null。
  */
 export function parseMyBatisParameters(
 	raw: string
@@ -39,19 +39,19 @@ export function parseMyBatisParameters(
 	if (trimmed === "") return [];
 
 	const entries: Array<{ value: string; type: string }> = [];
-	// Split on ", " but keep track of parentheses depth so values containing
-	// commas inside quotes still parse (best effort).
+	// 按 ", " 切分，同时跟踪括号深度，使引号内含逗号的值
+	// 也能尽量正确解析（尽力而为）。
 	const parts = splitParameterList(trimmed);
 	for (const part of parts) {
 		const trimmedPart = part.trim();
-		// MyBatis logs null parameters as a bare `null` without a type.
+		// MyBatis 将 null 参数记录为不带类型的裸 `null`。
 		if (trimmedPart === "null") {
 			entries.push({ value: "null", type: "null" });
 			continue;
 		}
 		const match = /^(.*)\(([\w[\]]+)\)$/.exec(trimmedPart);
 		if (!match) {
-			// Not a typed entry — treat whole thing as unparseable.
+			// 不是带类型的条目 —— 整体视为无法解析。
 			return null;
 		}
 		entries.push({ value: match[1], type: match[2] });
@@ -59,7 +59,7 @@ export function parseMyBatisParameters(
 	return entries;
 }
 
-/** Split `a(T), b(T)` on top-level ", " separators. */
+/** 按顶层的 ", " 分隔符切分 `a(T), b(T)`。 */
 function splitParameterList(raw: string): string[] {
 	const parts: string[] = [];
 	let depth = 0;
@@ -76,7 +76,7 @@ function splitParameterList(raw: string): string[] {
 		if (!inQuote && depth === 0 && ch === "," && raw[i + 1] === " ") {
 			parts.push(current);
 			current = "";
-			i += 1; // skip the space
+			i += 1; // 跳过空格
 			continue;
 		}
 		current += ch;
@@ -85,12 +85,12 @@ function splitParameterList(raw: string): string[] {
 	return parts;
 }
 
-/** Escape a string for embedding in SQL literal form. */
+/** 将字符串转义为可嵌入 SQL 字面量的形式。 */
 function escapeSqlString(value: string): string {
 	return `'${value.replace(/'/g, "''")}'`;
 }
 
-/** Render one typed parameter as its SQL literal. Returns null for unknown types. */
+/** 将单个带类型参数渲染为 SQL 字面量；未知类型返回 null。 */
 export function renderSqlLiteral(value: string, type: string): string | null {
 	if (value === "null") return "NULL";
 
@@ -100,8 +100,8 @@ export function renderSqlLiteral(value: string, type: string): string | null {
 		case "Timestamp":
 		case "LocalDate":
 		case "LocalDateTime": {
-			// MyBatis logs string-ish parameters already wrapped in single quotes,
-			// escaping inner quotes by doubling them. Strip, then re-escape.
+			// MyBatis 记录的字符串类参数已经包在单引号中，
+			// 内部引号以双写转义。先去掉外层引号，再重新转义。
 			let inner = value;
 			if (inner.length >= 2 && inner.startsWith("'") && inner.endsWith("'")) {
 				inner = inner.slice(1, -1).replace(/''/g, "'");
@@ -123,14 +123,14 @@ export function renderSqlLiteral(value: string, type: string): string | null {
 		case "Float":
 			return /^-?\d+(\.\d+)?$/.test(value) ? value : null;
 		default:
-			// Unknown type — refuse to guess.
+			// 未知类型 —— 拒绝猜测。
 			return null;
 	}
 }
 
 /**
- * Substitute `?` placeholders with rendered literals.
- * Returns null when the placeholder count mismatches or a type is unsupported.
+ * 将 `?` 占位符替换为渲染后的字面量。
+ * 占位符数量不匹配或类型不支持时返回 null。
  */
 export function reconstructSql(
 	preparingSql: string,
@@ -164,8 +164,8 @@ export function reconstructSql(
 }
 
 /**
- * Scan context lines for a Preparing/Parameters pair and reconstruct SQL.
- * Multiple pairs are supported; each becomes one SqlExtraction entry.
+ * 扫描上下文行中的 Preparing/Parameters 配对并还原 SQL。
+ * 支持多个配对；每个配对生成一条 SqlExtraction。
  */
 export function extractMyBatisSql(lines: string[]): SqlExtraction[] {
 	const results: SqlExtraction[] = [];
@@ -205,7 +205,7 @@ export function extractMyBatisSql(lines: string[]): SqlExtraction[] {
 		}
 	}
 
-	// A Preparing without a following Parameters line: report but don't reconstruct.
+	// 只有 Preparing 而没有后续 Parameters 行：上报但不还原。
 	if (pendingPreparing !== null) {
 		results.push({
 			preparingSql: pendingPreparing,

@@ -1,12 +1,12 @@
 /**
- * Java exception / stack trace extraction.
+ * Java 异常 / 堆栈信息提取。
  *
- * Merges multi-line Java stack traces into single records instead of
- * returning only the first line. Extracts:
- * - Exception type (fully qualified class name)
- * - Message
- * - Root cause (the deepest `Caused by:` entry)
- * - The merged stack trace lines (capped)
+ * 将多行 Java 堆栈合并为单条记录，而不是只返回第一行。
+ * 提取内容：
+ * - 异常类型（全限定类名）
+ * - 异常消息
+ * - 根因（最深一层的 `Caused by:` 条目）
+ * - 合并后的堆栈行（有上限）
  */
 
 export interface ExceptionCause {
@@ -15,40 +15,40 @@ export interface ExceptionCause {
 }
 
 export interface ExceptionExtraction {
-	/** Fully qualified exception class, e.g. java.sql.SQLException. */
+	/** 异常全限定类名，如 java.sql.SQLException。 */
 	type: string;
 	message: string | null;
-	/** Deepest `Caused by:` entry, or null when absent. */
+	/** 最深一层的 `Caused by:` 条目；不存在时为 null。 */
 	rootCause: ExceptionCause | null;
-	/** Merged stack trace lines (frames + caused-by), capped. */
+	/** 合并后的堆栈行（栈帧 + caused-by），有上限。 */
 	stackTrace: string[];
-	/** Index of the exception line within the input lines. */
+	/** 异常行在输入行中的下标。 */
 	lineIndex: number;
 }
 
-/** Cap merged stack frames per exception so huge traces stay bounded. */
+/** 单个异常合并的栈帧上限，避免巨大堆栈不受控。 */
 export const MAX_STACK_LINES = 60;
 
 /**
- * A qualified Java exception class name: dotted segments ending in
- * Exception/Error/Throwable, e.g. java.sql.SQLException,
- * org.springframework.dao.DuplicateKeyException.
+ * Java 异常全限定类名：以 Exception/Error/Throwable 结尾的点分段，
+ * 如 java.sql.SQLException、
+ * org.springframework.dao.DuplicateKeyException。
  */
 const EXCEPTION_CLASS_RE =
 	/\b((?:[a-zA-Z_$][\w$]*\.)+[A-Z][\w$]*(?:Exception|Error|Throwable))\b(?::?([^\n]*))?/;
 
-/** Continuation lines that belong to a stack trace. */
+/** 属于堆栈的续行。 */
 const STACK_FRAME_RE = /^\s*(at\s|\.\.\.\s*\d+\s+more)/;
 const CAUSED_BY_RE = /^\s*Caused by:\s*/;
 
-/** Common log-level markers used to accept unqualified mentions. */
+/** 常见日志级别标记，用于接受不带限定类名的提及。 */
 const ERROR_LEVEL_RE = /\b(ERROR|FATAL|SEVERE)\b/;
 
 function parseCauseLine(line: string): ExceptionCause | null {
 	const stripped = line.replace(CAUSED_BY_RE, "");
 	const match = EXCEPTION_CLASS_RE.exec(stripped);
 	if (!match) {
-		// Caused by something we can't classify — keep raw text as type.
+		// Caused by 后是无法归类的内容 —— 将原始文本作为 type 保留。
 		return { type: stripped.trim(), message: null };
 	}
 	const message = match[2]?.trim() || null;
@@ -60,9 +60,9 @@ function isStackTraceLine(line: string): boolean {
 }
 
 /**
- * Scan lines for exceptions and merge their stack traces.
- * A candidate start line either contains a qualified exception class name,
- * or is an ERROR/FATAL level line directly followed by stack frames.
+ * 扫描各行中的异常并合并其堆栈。
+ * 候选起始行要么包含全限定异常类名，
+ * 要么是紧跟栈帧的 ERROR/FATAL 级别行。
  */
 export function extractExceptions(lines: string[]): ExceptionExtraction[] {
 	const results: ExceptionExtraction[] = [];
@@ -76,7 +76,7 @@ export function extractExceptions(lines: string[]): ExceptionExtraction[] {
 			classMatch !== null || (ERROR_LEVEL_RE.test(line) && followedByStack);
 		if (!isStart) continue;
 
-		// Merge the stack trace that follows.
+		// 合并紧随其后的堆栈。
 		const stackTrace: string[] = [];
 		const causes: ExceptionCause[] = [];
 		let j = i + 1;
@@ -97,7 +97,7 @@ export function extractExceptions(lines: string[]): ExceptionExtraction[] {
 			type = classMatch[1];
 			message = classMatch[2]?.trim() || null;
 		} else {
-			// ERROR line without a class name: keep the text after the level.
+			// 不带类名的 ERROR 行：保留级别之后的文本。
 			type = "ERROR";
 			message = line.replace(/^.*\b(ERROR|FATAL|SEVERE)\b\s*/, "").trim() || null;
 		}
@@ -110,7 +110,7 @@ export function extractExceptions(lines: string[]): ExceptionExtraction[] {
 			lineIndex: i
 		});
 
-		// Skip past the merged stack so frames aren't re-detected.
+		// 跳过已合并的堆栈，避免栈帧被重复检测。
 		i = j - 1;
 	}
 

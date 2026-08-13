@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * log-diagnostic-mcp entry point.
+ * log-diagnostic-mcp 入口。
  *
- * A read-only MCP server that queries application logs on remote servers
- * over SSH and returns structured, masked diagnostic results.
+ * 一个只读的 MCP 服务器：通过 SSH 查询远程服务器上的应用日志，
+ * 并返回结构化、已脱敏的诊断结果。
  *
- * Transport: stdio (compatible with any standard MCP client).
+ * 传输方式：stdio（兼容任意标准 MCP 客户端）。
  */
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createServer } from "./server/mcpServer.js";
@@ -14,7 +14,7 @@ async function main(): Promise<void> {
 	const server = createServer();
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
-	// MCP stdio reserves stdout for protocol messages; log to stderr only.
+	// MCP stdio 协议占用 stdout，日志只能输出到 stderr。
 	console.error("[log-diagnostic-mcp] server started on stdio transport");
 }
 

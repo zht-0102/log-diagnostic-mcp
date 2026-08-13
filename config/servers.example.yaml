@@ -1,22 +1,22 @@
-# Example server configuration for log-diagnostic-mcp.
+# log-diagnostic-mcp 的服务器配置示例。
 #
-# Copy this file to `config/servers.yaml` and fill in real values.
-# `config/servers.yaml` and `.env` are gitignored — never commit real secrets.
+# 将本文件复制为 `config/servers.yaml` 并填入真实值。
+# `config/servers.yaml` 与 `.env` 已被 gitignore —— 绝不提交真实密钥。
 #
-# Values like ${SSH_PRIVATE_KEY} are expanded from environment variables
-# (loaded from .env via dotenv). If a referenced variable is missing,
-# startup fails fast with a clear error.
+# 形如 ${SSH_PRIVATE_KEY} 的值会从环境变量展开
+# （由 dotenv 从 .env 加载）。若引用的变量缺失，
+# 启动时会立即失败并给出清晰报错。
 
 limits:
-  # Maximum number of servers searched per query
+  # 单次查询最多搜索的服务器数
   maxServers: 10
-  # Maximum total matched lines returned per query
+  # 单次查询返回的匹配行总数上限
   maxLines: 3000
-  # Per-server SSH command timeout (seconds)
+  # 单台服务器 SSH 命令超时（秒）
   timeoutSeconds: 30
-  # Maximum parallel SSH connections
+  # 最大并行 SSH 连接数
   maxConcurrentConnections: 5
-  # Only the tail N lines of each log file are scanned (never full history)
+  # 只扫描每个日志文件的末尾 N 行（绝不读全量历史）
   scanLines: 20000
 
 servers:
@@ -27,7 +27,7 @@ servers:
     username: log-reader
     auth:
       type: private_key
-      # Path to the private key file, resolved from an environment variable
+      # 私钥文件路径，从环境变量解析
       privateKeyPath: ${SSH_PRIVATE_KEY}
     logPaths:
       - /data/logs/shipping

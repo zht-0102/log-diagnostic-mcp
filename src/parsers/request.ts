@@ -1,34 +1,34 @@
 /**
- * Request parameter extraction from log context lines.
+ * 从日志上下文行中提取请求参数。
  *
- * Targets common Java / Spring Boot log shapes:
+ * 面向 Java / Spring Boot 日志中常见的形态：
  *   Request: {...}
  *   Parameters: {...}
  *   RequestBody: {...}
  *   args: [...]
  *
- * When JSON is found it is parsed into structured data. When nothing
- * reliable is found, the result is `null` — never fabricated.
+ * 找到 JSON 时会解析为结构化数据。找不到可靠内容时
+ * 结果返回 `null` —— 绝不凭空捏造。
  */
 
 export interface RequestExtraction {
-	/** Structured parameters when JSON could be parsed. */
+	/** JSON 解析成功时的结构化参数。 */
 	parameters: unknown | null;
-	/** Raw text that produced the parameters (truncated). */
+	/** 产生该参数的原始文本（已截断）。 */
 	rawSource: string | null;
-	/** Which marker line produced the match, e.g. "RequestBody:". */
+	/** 命中的标记行，如 "RequestBody:"。 */
 	detectedMarker: string | null;
 }
 
-/** Markers that indicate a request payload on the same line. */
+/** 表示同一行内存在请求载荷的标记。 */
 const REQUEST_MARKERS = ["Request:", "Parameters:", "RequestBody:", "args:", "request body:", "input:"];
 
-/** Maximum length of the raw payload we try to parse / return. */
+/** 尝试解析 / 返回的原始载荷最大长度。 */
 const MAX_PAYLOAD_CHARS = 20000;
 
 /**
- * Try to extract the first balanced JSON value starting at `startIndex`.
- * Returns the JSON text or null when braces/brackets never balance.
+ * 从 `startIndex` 开始尝试提取第一个括号平衡的 JSON 值。
+ * 返回 JSON 文本；花括号/方括号始终无法平衡时返回 null。
  */
 export function extractBalancedJson(text: string, startIndex: number): string | null {
 	const open = text[startIndex];
@@ -65,26 +65,26 @@ export function extractBalancedJson(text: string, startIndex: number): string | 
 	return null;
 }
 
-/** Attempt JSON.parse, tolerating common single-quote / unquoted-key variants. */
+/** 尝试 JSON.parse，并宽容处理常见的单引号 / 无引号键变体。 */
 export function tryParseJson(text: string): unknown | null {
 	try {
 		return JSON.parse(text);
 	} catch {
-		// fall through to lenient attempts
+		// 继续尝试宽松解析
 	}
-	// Single-quoted JSON (common in hand-written logs)
+	// 单引号 JSON（手写日志中常见）
 	try {
 		const normalized = text.replace(/'/g, '"');
 		return JSON.parse(normalized);
 	} catch {
-		// give up
+		// 放弃
 	}
 	return null;
 }
 
 /**
- * Scan context lines for a request payload.
- * Returns structured parameters when found, otherwise a null result.
+ * 扫描上下文行中的请求载荷。
+ * 找到时返回结构化参数，否则返回全 null 结果。
  */
 export function extractRequestParameters(lines: string[]): RequestExtraction {
 	for (const line of lines) {

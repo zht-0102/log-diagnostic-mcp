@@ -64,16 +64,16 @@ describe("isWithinWindow", () => {
 	});
 
 	it("compares zoned timestamps as absolute instants", () => {
-		// 10:15+08:00 == 02:15Z → inside
+		// 10:15+08:00 == 02:15Z → 在窗口内
 		expect(isWithinWindow("2026-08-13T10:15:00.000+08:00", startMs, endMs, OFFSET_8H)).toBe(true);
-		// 11:15+08:00 == 03:15Z → outside
+		// 11:15+08:00 == 03:15Z → 在窗口外
 		expect(isWithinWindow("2026-08-13T11:15:00.000+08:00", startMs, endMs, OFFSET_8H)).toBe(false);
 	});
 
 	it("compares zone-less timestamps using the assumed local offset", () => {
-		// 10:15 local (+08:00) == 02:15Z → inside
+		// 本地 10:15（+08:00）== 02:15Z → 在窗口内
 		expect(isWithinWindow("2026-08-13T10:15:00.000", startMs, endMs, OFFSET_8H)).toBe(true);
-		// 09:15 local (+08:00) == 01:15Z → outside
+		// 本地 09:15（+08:00）== 01:15Z → 在窗口外
 		expect(isWithinWindow("2026-08-13T09:15:00.000", startMs, endMs, OFFSET_8H)).toBe(false);
 	});
 });

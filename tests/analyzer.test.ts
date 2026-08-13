@@ -32,7 +32,7 @@ describe("analyzeBasics", () => {
 		expect(result.confirmedFacts.join("\n")).toContain("Matched 5 log line(s)");
 		expect(result.confirmedFacts.join("\n")).toContain("DuplicateKeyException");
 		expect(result.confirmedFacts.join("\n")).toContain("SQLIntegrityConstraintViolationException");
-		// Facts must never contain speculative language like "Possibly"
+		// 事实中绝不应出现 "Possibly" 这类推测性表述
 		expect(result.confirmedFacts.join("\n")).not.toContain("Possibly");
 	});
 

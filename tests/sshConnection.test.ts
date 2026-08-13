@@ -27,7 +27,7 @@ const limits: LimitsConfig = {
 	scanLines: 20000
 };
 
-/** Build a fake ExecStreamLike that emits the given stdout then closes. */
+/** 构造假的 ExecStreamLike：输出给定 stdout 后关闭。 */
 function fakeStream(stdout: string, exitCode = 0, stderr = ""): ExecStreamLike {
 	const emitter = new EventEmitter() as unknown as ExecStreamLike;
 	const out = Readable.from([Buffer.from(stdout, "utf-8")]);
@@ -45,7 +45,7 @@ function fakeStream(stdout: string, exitCode = 0, stderr = ""): ExecStreamLike {
 	return emitter;
 }
 
-/** Transport factory that records commands and returns canned output. */
+/** 记录命令并返回预置输出的 transport 工厂。 */
 function recordingFactory(stdout: string, exitCode = 0) {
 	const commands: string[] = [];
 	const factory = async (): Promise<SshTransportLike> => ({
@@ -97,7 +97,7 @@ describe("SshExecutor.exec", () => {
 	it("flags timedOut when the command exceeds its timeout", async () => {
 		const factory = async (): Promise<SshTransportLike> => ({
 			exec(_command, callback) {
-				// A stream that never emits data and never closes.
+				// 一个永不输出数据、也永不关闭的流。
 				const emitter = new EventEmitter() as unknown as ExecStreamLike;
 				emitter.stdout = new Readable({ read() {} });
 				emitter.stderr = new Readable({ read() {} });

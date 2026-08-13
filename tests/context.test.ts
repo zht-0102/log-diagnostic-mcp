@@ -28,7 +28,7 @@ const limits: LimitsConfig = {
 	scanLines: 20000
 };
 
-/** A 10-line log window; the keyword is on line 6. */
+/** 10 行日志窗口；关键词在第 6 行。 */
 const WINDOW = [
 	"2026-08-13 10:01:00.001 INFO  boot",
 	"2026-08-13 10:01:00.500 DEBUG loading config",
@@ -130,7 +130,7 @@ describe("enrichMatchesWithContext", () => {
 	it("drops matches outside the time window", async () => {
 		const executor = tailExecutor(WINDOW + "\n");
 		const timeWindow = {
-			// Match is at 10:01:02 local (+08:00) = 02:01:02Z. Window is later.
+			// 匹配行位于本地时间（+08:00）10:01:02 = 02:01:02Z，窗口在其之后。
 			startMs: Date.parse("2026-08-13T03:00:00Z"),
 			endMs: Date.parse("2026-08-13T04:00:00Z"),
 			localOffsetMs: 8 * 60 * 60 * 1000

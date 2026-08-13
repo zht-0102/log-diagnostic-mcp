@@ -34,7 +34,7 @@ describe("extractExceptions", () => {
 		expect(ex.rootCause).not.toBeNull();
 		expect(ex.rootCause!.type).toBe("java.sql.SQLIntegrityConstraintViolationException");
 		expect(ex.rootCause!.message).toContain("Duplicate entry");
-		// Frames, caused-by and "... N more" all merged.
+		// 栈帧、caused-by 与 "... N more" 全部被合并。
 		expect(ex.stackTrace.length).toBe(4);
 	});
 

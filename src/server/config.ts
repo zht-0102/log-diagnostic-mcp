@@ -5,11 +5,11 @@ import { z } from "zod";
 import dotenv from "dotenv";
 
 /**
- * Configuration loading for log-diagnostic-mcp.
+ * 配置加载模块（log-diagnostic-mcp）。
  *
- * - YAML file at `config/servers.yaml` (override with env LOG_MCP_CONFIG)
- * - `.env` is loaded via dotenv so secrets stay out of the YAML / git
- * - `${VAR}` placeholders in string values are expanded from the environment
+ * - YAML 文件位于 `config/servers.yaml`（可用环境变量 LOG_MCP_CONFIG 覆盖）
+ * - 通过 dotenv 加载 `.env`，使密钥不必写进 YAML / git
+ * - 字符串值中的 `${VAR}` 占位符会从环境变量展开
  */
 
 const authSchema = z.discriminatedUnion("type", [
@@ -62,9 +62,9 @@ export interface AppConfig {
 }
 
 /**
- * Expand `${VAR}` placeholders in a string from the environment.
- * Throws when a referenced variable is not defined, so missing
- * secrets fail fast at startup instead of producing broken SSH configs.
+ * 从环境变量展开字符串中的 `${VAR}` 占位符。
+ * 引用的变量未定义时直接抛错，让缺失的密钥在启动时快速失败，
+ * 而不是生成残缺的 SSH 配置。
  */
 export function expandEnv(value: string, env: NodeJS.ProcessEnv = process.env): string {
 	return value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (match, varName: string) => {
@@ -79,7 +79,7 @@ export function expandEnv(value: string, env: NodeJS.ProcessEnv = process.env): 
 	});
 }
 
-/** Recursively expand `${VAR}` placeholders in all string values. */
+/** 递归展开所有字符串值中的 `${VAR}` 占位符。 */
 function expandEnvDeep<T>(value: T, env: NodeJS.ProcessEnv = process.env): T {
 	if (typeof value === "string") {
 		return expandEnv(value, env) as unknown as T;
@@ -98,8 +98,8 @@ function expandEnvDeep<T>(value: T, env: NodeJS.ProcessEnv = process.env): T {
 }
 
 /**
- * Resolve the configuration file path.
- * Priority: explicit argument > LOG_MCP_CONFIG env > config/servers.yaml (cwd).
+ * 解析配置文件路径。
+ * 优先级：显式参数 > LOG_MCP_CONFIG 环境变量 > config/servers.yaml（当前工作目录）。
  */
 export function resolveConfigPath(explicitPath?: string): string {
 	if (explicitPath) {
@@ -112,11 +112,11 @@ export function resolveConfigPath(explicitPath?: string): string {
 }
 
 /**
- * Load, expand and validate the application configuration.
- * Throws descriptive errors for missing files, unresolved env vars or invalid shapes.
+ * 加载、展开并校验应用配置。
+ * 文件缺失、环境变量未解析、结构非法时抛出带说明的错误。
  */
 export function loadConfig(explicitPath?: string): AppConfig {
-	// Load .env if present (no error when absent).
+	// 若存在 .env 则加载（不存在时不报错）。
 	dotenv.config();
 
 	const configPath = resolveConfigPath(explicitPath);
@@ -150,7 +150,7 @@ export function loadConfig(explicitPath?: string): AppConfig {
 
 	const config = validation.data;
 
-	// Duplicate server names would make serverNames filtering ambiguous.
+	// 服务器重名会让 serverNames 过滤产生歧义，直接拒绝。
 	const seen = new Set<string>();
 	for (const server of config.servers) {
 		if (seen.has(server.name)) {

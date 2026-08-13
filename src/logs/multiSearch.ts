@@ -3,36 +3,36 @@ import { ConcurrencyLimiter, SshExecutor } from "../ssh/connection.js";
 import { searchSingleServer, type LogMatch, type SingleServerSearchResult } from "./search.js";
 
 /**
- * Multi-server search orchestration.
+ * 多服务器搜索编排。
  *
- * - Filters configured servers by environment and/or explicit names.
- * - Enforces limits.maxServers per query.
- * - Runs searches concurrently, bounded by limits.maxConcurrentConnections
- *   (the shared ConcurrencyLimiter bounds actual SSH connections).
+ * - 按环境和/或显式服务器名过滤已配置的服务器。
+ * - 强制执行 limits.maxServers（单次查询上限）。
+ * - 并发执行搜索，受 limits.maxConcurrentConnections 约束
+ *   （共享的 ConcurrencyLimiter 限制实际的 SSH 连接数）。
  */
 
 export interface MultiServerQuery {
 	keyword: string;
 	environment?: string;
 	serverNames?: string[];
-	/** Per-server match cap for this query. */
+	/** 本次查询的单服务器命中上限。 */
 	maxMatchesPerServer: number;
 }
 
 export interface MultiServerResult {
-	/** Servers that were actually searched. */
+	/** 实际被搜索的服务器。 */
 	searchedServers: string[];
-	/** Servers skipped because of environment/name filters. */
+	/** 因环境/名称过滤被跳过的服务器。 */
 	skippedServers: string[];
-	/** True when more servers matched the filters than limits.maxServers. */
+	/** 命中过滤条件的服务器超过 limits.maxServers 时为 true。 */
 	truncated: boolean;
 	results: SingleServerSearchResult[];
-	/** Servers that failed completely (connection errors etc). */
+	/** 完全失败的服务器（连接错误等）。 */
 	failures: Array<{ server: string; error: string }>;
 	matches: LogMatch[];
 }
 
-/** Apply environment / serverNames filters to the configured server list. */
+/** 对已配置的服务器列表应用环境 / serverNames 过滤。 */
 export function selectServers(
 	servers: ServerConfig[],
 	environment?: string,
@@ -53,8 +53,8 @@ export function selectServers(
 }
 
 /**
- * Search multiple servers concurrently for a keyword.
- * Executor construction is injectable for testing.
+ * 在多台服务器上并发搜索关键词。
+ * 执行器构造可注入，便于测试。
  */
 export async function searchMultipleServers(
 	config: AppConfig,
@@ -110,7 +110,7 @@ export async function searchMultipleServers(
 	};
 }
 
-/** Cache one limiter per limits object so all executors share the cap. */
+/** 按 limits 对象缓存 limiter，使所有执行器共享同一个并发上限。 */
 const limiterCache = new WeakMap<AppConfig["limits"], ConcurrencyLimiter>();
 
 function sharedLimiter(config: AppConfig): ConcurrencyLimiter {

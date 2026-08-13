@@ -1,13 +1,13 @@
 /**
- * Basic error analysis.
+ * 基础错误分析。
  *
- * Strictly evidence-based, three sections:
- * - confirmedFacts:  directly proven by the extracted logs
- * - possibleCauses:  inferences, always labeled as possibilities
- * - recommendations: concrete next things to check
+ * 严格基于证据，分三部分：
+ * - confirmedFacts：由提取到的日志直接证实的事实
+ * - possibleCauses：推断，始终标注为可能性
+ * - recommendations：接下来可具体执行的排查项
  *
- * Guesses are never stated as facts. When there is no evidence for a
- * section, it says so instead of fabricating content.
+ * 猜测绝不会被表述为事实。某部分没有证据时，
+ * 会如实说明，而不是编造内容。
  */
 
 import type { ExceptionExtraction } from "../parsers/exception.js";
@@ -20,7 +20,7 @@ export interface AnalysisInput {
 	sql: SqlExtraction[];
 	requestDetected: boolean;
 	responseDetected: boolean;
-	/** Server-side errors collected during the search itself. */
+	/** 搜索过程中收集到的服务端错误。 */
 	searchErrors: string[];
 }
 
@@ -30,7 +30,7 @@ export interface AnalysisResult {
 	recommendations: string[];
 }
 
-/** Known exception families → (possible cause, recommendations). */
+/** 已知异常家族 → （可能原因、建议）。 */
 const EXCEPTION_KNOWLEDGE: Array<{
 	match: (ex: ExceptionExtraction) => boolean;
 	cause: string;
@@ -87,13 +87,13 @@ const EXCEPTION_KNOWLEDGE: Array<{
 	}
 ];
 
-/** Produce the three-section analysis from extracted evidence only. */
+/** 仅基于提取到的证据生成三段式分析。 */
 export function analyzeBasics(input: AnalysisInput): AnalysisResult {
 	const confirmedFacts: string[] = [];
 	const possibleCauses: string[] = [];
 	const recommendations: string[] = [];
 
-	// --- Facts from the search itself ---
+	// --- 来自搜索本身的事实 ---
 	if (input.matchCount === 0) {
 		confirmedFacts.push(`No log lines matched keyword "${input.keyword}" in the searched window.`);
 		recommendations.push("Widen the time range or try a shorter/different keyword (e.g. part of a business id).");
@@ -105,7 +105,7 @@ export function analyzeBasics(input: AnalysisInput): AnalysisResult {
 		confirmedFacts.push(`Some servers/paths could not be fully searched: ${input.searchErrors.join("; ")}`);
 	}
 
-	// --- Facts from request/response extraction ---
+	// --- 来自请求/响应提取的事实 ---
 	if (input.requestDetected) {
 		confirmedFacts.push("Request parameters were detected near the matched lines.");
 	}
@@ -113,7 +113,7 @@ export function analyzeBasics(input: AnalysisInput): AnalysisResult {
 		confirmedFacts.push("A response payload was detected near the matched lines.");
 	}
 
-	// --- Facts and causes from SQL ---
+	// --- 来自 SQL 的事实与原因 ---
 	for (const sql of input.sql) {
 		if (sql.preparingSql) {
 			confirmedFacts.push(`Executed SQL (MyBatis): ${sql.preparingSql}`);
@@ -123,7 +123,7 @@ export function analyzeBasics(input: AnalysisInput): AnalysisResult {
 		}
 	}
 
-	// --- Facts, causes and recommendations from exceptions ---
+	// --- 来自异常的事实、原因与建议 ---
 	if (input.exceptions.length === 0) {
 		if (input.matchCount > 0) {
 			confirmedFacts.push("No exception or ERROR block was found in the returned context.");
@@ -152,7 +152,7 @@ export function analyzeBasics(input: AnalysisInput): AnalysisResult {
 		}
 	}
 
-	// --- Generic fallbacks so sections are never silently empty ---
+	// --- 通用兑底，保证各部分绝不会被静默留空 ---
 	if (possibleCauses.length === 0 && input.exceptions.length > 0) {
 		possibleCauses.push("Possibly: an application bug or invalid input; no known pattern matched, see the stack trace.");
 	}

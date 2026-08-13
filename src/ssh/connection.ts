@@ -5,33 +5,33 @@ import type { ServerConfig, LimitsConfig } from "../server/config.js";
 import { assertNotForbidden } from "../security/shellGuard.js";
 
 /**
- * Read-only SSH execution layer.
+ * 只读的 SSH 执行层。
  *
- * - Only `exec` is exposed: no shell, no SFTP write, no pty.
- * - Every command passes assertNotForbidden() before execution.
- * - Per-command timeout and output size caps prevent runaway reads.
- * - A shared concurrency limiter bounds parallel SSH connections.
+ * - 只暴露 `exec`：没有交互式 shell，没有 SFTP 写入，没有 pty。
+ * - 每条命令执行前都经过 assertNotForbidden() 拦截。
+ * - 单命令超时与输出大小上限防止失控的读取。
+ * - 共享的并发限制器约束并行的 SSH 连接数。
  */
 
 export interface ExecResult {
-	/** Process exit code (grep returns 1 for "no matches"; not an error). */
+	/** 进程退出码（grep 无匹配时返回 1，不算错误）。 */
 	exitCode: number;
 	stdout: string;
-	/** Kept for diagnostics; truncated like stdout. */
+	/** 保留用于诊断；与 stdout 一样会被截断。 */
 	stderr: string;
-	/** True when the output was cut at maxOutputBytes. */
+	/** 输出在 maxOutputBytes 处被截断时为 true。 */
 	truncated: boolean;
-	/** True when the command hit its timeout and the channel was destroyed. */
+	/** 命令超时、通道被销毁时为 true。 */
 	timedOut: boolean;
 }
 
 export interface ExecOptions {
 	timeoutMs: number;
-	/** Hard cap on captured output per command. */
+	/** 单条命令捕获输出的硬上限。 */
 	maxOutputBytes?: number;
 }
 
-/** Minimal stream contract used by execStream (satisfied by ssh2 ClientChannel). */
+/** execStream 使用的最小流契约（ssh2 的 ClientChannel 满足该契约）。 */
 export interface ExecStreamLike {
 	stdout: NodeJS.ReadableStream;
 	stderr: NodeJS.ReadableStream;
@@ -40,12 +40,12 @@ export interface ExecStreamLike {
 	destroy(): void;
 }
 
-/** Minimal transport contract (satisfied by ssh2 Client; mockable in tests). */
+/** 最小传输层契约（ssh2 的 Client 满足该契约；测试中可 mock）。 */
 export interface SshTransportLike {
 	exec(command: string, callback: (err: Error | undefined, stream: ExecStreamLike) => void): void;
 }
 
-const DEFAULT_MAX_OUTPUT_BYTES = 8 * 1024 * 1024; // 8 MB per command
+const DEFAULT_MAX_OUTPUT_BYTES = 8 * 1024 * 1024; // 每条命令 8 MB
 
 export class SshExecError extends Error {
 	constructor(
@@ -58,7 +58,7 @@ export class SshExecError extends Error {
 	}
 }
 
-/** Execute a command against a transport-like stream with timeout + size caps. */
+/** 在类传输层流上执行命令，带超时与输出大小限制。 */
 export function execStream(stream: ExecStreamLike, options: ExecOptions): Promise<ExecResult> {
 	return new Promise((resolvePromise, rejectPromise) => {
 		const maxBytes = options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
@@ -74,7 +74,7 @@ export function execStream(stream: ExecStreamLike, options: ExecOptions): Promis
 			try {
 				stream.destroy();
 			} catch {
-				/* already closed */
+				/* 已关闭 */
 			}
 		}, options.timeoutMs);
 
@@ -108,7 +108,7 @@ export function execStream(stream: ExecStreamLike, options: ExecOptions): Promis
 			settle({ exitCode: code, stdout, stderr, truncated, timedOut });
 		});
 
-		// Reject connection-level stream errors instead of hanging.
+		// 连接层的流错误直接 reject，避免无限挂起。
 		(stream as unknown as { on?: (e: string, l: (err: Error) => void) => void }).on?.(
 			"error",
 			(err: Error) => {
@@ -122,7 +122,7 @@ export function execStream(stream: ExecStreamLike, options: ExecOptions): Promis
 	});
 }
 
-/** Simple FIFO promise-based concurrency limiter. */
+/** 基于 Promise 的简单 FIFO 并发限制器。 */
 export class ConcurrencyLimiter {
 	private running = 0;
 	private readonly queue: Array<() => void> = [];
@@ -147,10 +147,9 @@ export class ConcurrencyLimiter {
 }
 
 /**
- * SSH executor bound to one configured server.
- * Connections are created lazily per exec and closed afterwards —
- * the MVP favors simplicity and safety over long-lived pooling; the
- * ConcurrencyLimiter bounds how many connections exist at once.
+ * 绑定到单台已配置服务器的 SSH 执行器。
+ * 连接按 exec 懒创建、用完即关 —— MVP 阶段以简单和安全优先，
+ * 不做长生命周期连接池；同时存在的连接数由 ConcurrencyLimiter 约束。
  */
 export class SshExecutor {
 	constructor(
@@ -160,7 +159,7 @@ export class SshExecutor {
 		private readonly transportFactory: (server: ServerConfig) => Promise<SshTransportLike> = connectSsh
 	) {}
 
-	/** Run a read-only command on the remote server. */
+	/** 在远程服务器上执行一条只读命令。 */
 	async exec(command: string, options?: Partial<ExecOptions>): Promise<ExecResult> {
 		assertNotForbidden(command);
 		return this.limiter.run(async () => {
@@ -197,7 +196,7 @@ export class SshExecutor {
 	}
 }
 
-/** Establish an ssh2 connection for a configured server (private key or password). */
+/** 为已配置的服务器建立 ssh2 连接（私钥或密码认证）。 */
 export function connectSsh(server: ServerConfig): Promise<SshTransportLike> {
 	return new Promise((resolvePromise, rejectPromise) => {
 		const client = new Client();
@@ -207,7 +206,7 @@ export function connectSsh(server: ServerConfig): Promise<SshTransportLike> {
 			port: server.port,
 			username: server.username,
 			readyTimeout: 15000,
-			// Never fall back to weaker auth; explicit config only.
+			// 绝不回退到更弱的认证方式；只用显式配置的认证。
 			tryKeyboard: false
 		};
 		if (server.auth.type === "private_key") {

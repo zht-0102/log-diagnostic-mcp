@@ -4,11 +4,11 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 /**
- * MCP startup smoke test.
+ * MCP 启动冒烟测试。
  *
- * Spawns the real server binary (`tsx src/index.ts`) as a subprocess and
- * speaks raw JSON-RPC over stdio: initialize → notifications/initialized →
- * tools/list. Proves the packaged entry point starts and registers the tool.
+ * 将真实的服务入口（`tsx src/index.ts`）以子进程方式启动，
+ * 通过 stdio 直接对话原始 JSON-RPC：initialize → notifications/initialized →
+ * tools/list。验证打包后的入口可启动并注册了工具。
  */
 
 const require = createRequire(import.meta.url);
@@ -56,7 +56,7 @@ async function runStartupCheck(timeoutMs = 30_000): Promise<{
 				const message = JSON.parse(line) as JsonRpcMessage;
 				if (typeof message.id === "number") responses.set(message.id, message);
 			} catch {
-				// Non-JSON noise on stdout: ignore.
+				// stdout 上的非 JSON 噪音：忽略。
 			}
 		}
 	});

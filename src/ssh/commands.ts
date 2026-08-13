@@ -1,14 +1,14 @@
 import { shellQuote, validateKeyword, validateLogPath } from "../security/shellGuard.js";
 
 /**
- * Builders for the ONLY remote commands this server ever runs.
- * Every builder:
- * - validates its inputs against strict whitelists,
- * - quotes every dynamic argument with POSIX single quotes,
- * - produces strictly read-only pipelines (tail / grep / cat / awk / ls / wc).
+ * 本服务器在远程执行的命令，仅此几种，这里是它们的构造器。
+ * 每个构造器都：
+ * - 用严格白名单校验输入，
+ * - 对每个动态参数做 POSIX 单引号转义，
+ * - 只生成严格只读的管道（tail / grep / cat / awk / ls / wc）。
  */
 
-/** `tail -n <N> <file>` — read the last N lines of one log file. */
+/** `tail -n <N> <file>` —— 读取单个日志文件的最后 N 行。 */
 export function buildTailCommand(scanLines: number, filePath: string): string {
 	validateLogPath(filePath);
 	if (!Number.isInteger(scanLines) || scanLines < 1) {
@@ -18,9 +18,9 @@ export function buildTailCommand(scanLines: number, filePath: string): string {
 }
 
 /**
- * `tail -n <N> <file> | grep -n -F -e <keyword>` —
- * keyword search restricted to the last N lines. `-F` keeps the keyword
- * literal (no regex interpretation), `-n` prefixes physical-ish line numbers.
+ * `tail -n <N> <file> | grep -n -F -e <keyword>` ——
+ * 限定在最后 N 行内的关键词搜索。`-F` 保证关键词按字面量匹配
+ * （不作正则解释），`-n` 输出行号前缀。
  */
 export function buildGrepTailCommand(scanLines: number, keyword: string, filePath: string): string {
 	validateLogPath(filePath);
@@ -32,9 +32,9 @@ export function buildGrepTailCommand(scanLines: number, keyword: string, filePat
 }
 
 /**
- * `cat <file> | awk 'NR>=start && NR<=end'` —
- * read a physical line range [fromLine, toLine] (inclusive) from a file.
- * Used to fetch surrounding context around a match.
+ * `cat <file> | awk 'NR>=start && NR<=end'` ——
+ * 读取文件的物理行区间 [fromLine, toLine]（含两端）。
+ * 用于获取命中行周围的上下文。
  */
 export function buildLineRangeCommand(filePath: string, fromLine: number, toLine: number): string {
 	validateLogPath(filePath);
@@ -45,7 +45,7 @@ export function buildLineRangeCommand(filePath: string, fromLine: number, toLine
 }
 
 /**
- * `wc -l < <file>` — count lines in a file (reads only, prints a number).
+ * `wc -l < <file>` —— 统计文件行数（只读，输出一个数字）。
  */
 export function buildLineCountCommand(filePath: string): string {
 	validateLogPath(filePath);
@@ -53,9 +53,9 @@ export function buildLineCountCommand(filePath: string): string {
 }
 
 /**
- * `ls -1t <dir> | grep -E '\.log(\.[0-9]+)?$'` —
- * list plain-text rotated log files directly inside a configured directory,
- * newest first (no glob expansion, no recursion).
+ * `ls -1t <dir> | grep -E '\.log(\.[0-9]+)?$'` ——
+ * 列出配置目录直属的纯文本滚动日志文件，最新的在前
+ * （不做 glob 展开，不递归）。
  */
 export function buildListLogFilesCommand(directory: string): string {
 	validateLogPath(directory);

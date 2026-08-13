@@ -5,22 +5,21 @@ import { isWithinWindow, parseLineTimestamp } from "./timestamps.js";
 import type { LogMatch } from "./search.js";
 
 /**
- * Physical context extraction.
+ * 物理上下文提取。
  *
- * For every log file containing matches, the scanned tail window is
- * fetched ONCE, then before/after slices are computed locally for each
- * match — this keeps remote round-trips minimal and stays strictly
- * read-only (only `tail` is executed).
+ * 对每个包含命中的日志文件，只拉取一次扫描（tail）窗口，
+ * 然后在本地为每个命中计算前/后切片 —— 这样远程往返次数
+ * 最少，且保持严格只读（只执行 `tail`）。
  */
 
 export interface MatchWithContext {
 	server: string;
 	environment: string;
 	logFile: string;
-	/** 1-based line index inside the scanned tail window. */
+	/** 在扫描（tail）窗口内的行号，1 开始。 */
 	lineInWindow: number;
 	matchedLine: string;
-	/** Timestamp parsed from the matched line, or null. */
+	/** 从命中行解析出的时间戳，无则 null。 */
 	timestamp: string | null;
 	contextBefore: string[];
 	contextAfter: string[];
@@ -28,9 +27,9 @@ export interface MatchWithContext {
 
 export interface ContextResult {
 	enriched: MatchWithContext[];
-	/** Matches dropped because their timestamp fell outside the query window. */
+	/** 因时间戳落在查询窗口外而被丢弃的命中数。 */
 	droppedByTime: number;
-	/** Matches kept without context because the window fetch failed. */
+	/** 因窗口拉取失败而无上下文、仍被保留的命中数。 */
 	missingContext: number;
 	errors: string[];
 }
@@ -38,18 +37,18 @@ export interface ContextResult {
 export interface TimeWindow {
 	startMs: number;
 	endMs: number;
-	/** Assumed offset of zone-less log timestamps, ms east of UTC (e.g. +08:00 → 28800000). */
+	/** 无时区日志时间戳的假定偏移，单位毫秒、UTC 以东（如 +08:00 → 28800000）。 */
 	localOffsetMs: number;
 }
 
-/** Clamp helper: [fromLine, toLine] inclusive, 1-based. */
+/** 区间夹取辅助：[fromLine, toLine] 含两端，1 开始。 */
 function clampRange(line: number, before: number, after: number, totalLines: number): { from: number; to: number } {
 	const from = Math.max(1, line - before);
 	const to = Math.min(totalLines, line + after);
 	return { from, to };
 }
 
-/** Slice context lines around a match inside the fetched window. */
+/** 在已拉取的窗口内，切出某个命中周围的上下文行。 */
 export function sliceContext(
 	windowLines: string[],
 	lineInWindow: number,
@@ -64,8 +63,8 @@ export function sliceContext(
 }
 
 /**
- * Enrich matches with surrounding context and apply time-window filtering.
- * Matches are grouped by file; one `tail` fetch per file.
+ * 为命中补充上下文并应用时间窗口过滤。
+ * 命中按文件分组；每个文件只拉取一次 `tail`。
  */
 export async function enrichMatchesWithContext(
 	executor: SshExecutor,
@@ -94,7 +93,7 @@ export async function enrichMatchesWithContext(
 		const result = await executor.exec(buildTailCommand(limits.scanLines, logFile));
 		if (result.exitCode === 0) {
 			windowLines = result.stdout.split("\n");
-			// Drop the trailing empty element produced by the final newline.
+			// 去掉末尾换行产生的空元素。
 			if (windowLines.length > 0 && windowLines[windowLines.length - 1] === "") {
 				windowLines.pop();
 			}

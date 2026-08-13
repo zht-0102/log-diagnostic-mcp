@@ -14,8 +14,8 @@ import { maskDeep } from "../security/sanitize.js";
 import { validateKeyword } from "../security/shellGuard.js";
 
 /**
- * Input schema for the search_logs tool.
- * Only `keyword` is required; everything else has sensible defaults.
+ * search_logs 工具的输入 schema。
+ * 只有 `keyword` 是必填项；其余都有合理默认值。
  */
 export const searchLogsInputSchema = {
 	keyword: z
@@ -63,7 +63,7 @@ export type SearchLogsInput = z.infer<
 	}>
 >;
 
-/** Extraction results annotated with where they were found. */
+/** 标注了发现位置的提取结果。 */
 export interface LocatedRequest {
 	server: string;
 	environment: string;
@@ -92,18 +92,18 @@ export interface LocatedException extends ExceptionExtraction {
 	logFile: string;
 }
 
-/** Injectable seams so the pipeline can be tested without real SSH. */
+/** 可注入的替换点，使管道可以在不依赖真实 SSH 的情况下测试。 */
 export interface SearchLogsDependencies {
 	loadConfiguration?: () => AppConfig;
 	createExecutor?: (server: ServerConfig, limits: LimitsConfig, limiter: ConcurrencyLimiter) => SshExecutor;
 }
 
 /**
- * Run the whole search_logs pipeline:
- * config → multi-server grep → context + time filter → parsers → analysis → masking.
+ * 执行完整的 search_logs 管道：
+ * 配置 → 多服务器 grep → 上下文 + 时间过滤 → 解析器 → 分析 → 脱敏。
  *
- * Nothing here is ever returned to the client without passing through
- * `maskDeep` (sensitive value masking) at the very end.
+ * 这里返回的任何内容在最终出口前都必须经过
+ * `maskDeep`（敏感值脱敏），绝无例外。
  */
 export async function runSearchLogs(
 	args: SearchLogsInput,
@@ -116,13 +116,13 @@ export async function runSearchLogs(
 	const timeWindow: TimeWindow = {
 		startMs,
 		endMs,
-		// Zone-less log timestamps are assumed to be in the local zone of the
-		// machine running this server (usually the same zone as the fleet).
+		// 不带时区的日志时间戳假定处于运行本服务的机器的本地时区
+		// （通常与目标机器集群同区）。
 		localOffsetMs: -new Date().getTimezoneOffset() * 60_000
 	};
 
-	// One shared limiter + one executor per server so search and context
-	// enrichment reuse the same objects (and respect the connection cap).
+	// 共享一个限流器 + 每台服务器一个 executor，使搜索与上下文
+	// 补全复用同一批对象（并遵守连接数上限）。
 	const limiter = new ConcurrencyLimiter(config.limits.maxConcurrentConnections);
 	const executors = new Map<string, SshExecutor>();
 	const executorFor = (server: ServerConfig): SshExecutor => {
@@ -147,7 +147,7 @@ export async function runSearchLogs(
 		executorFor
 	);
 
-	// Enrich matches with context, grouped by server, and apply the time window.
+	// 按服务器分组为匹配项补全上下文，并应用时间窗口。
 	const enriched: MatchWithContext[] = [];
 	const contextErrors: string[] = [];
 	let droppedByTime = 0;
@@ -171,11 +171,11 @@ export async function runSearchLogs(
 		contextErrors.push(...ctx.errors);
 	}
 
-	// Global match cap so a very noisy keyword cannot flood the AI client.
+	// 全局匹配数上限，避免噪音关键词淹没 AI 客户端。
 	const matchesTruncated = enriched.length > config.limits.maxLines;
 	const kept = enriched.slice(0, config.limits.maxLines);
 
-	// Run all parsers over each match's local block (before + match + after).
+	// 对每个匹配的局部块（前文 + 匹配行 + 后文）跑全部解析器。
 	const requestParameters: LocatedRequest[] = [];
 	const responses: LocatedResponse[] = [];
 	const sql: LocatedSql[] = [];
@@ -273,8 +273,8 @@ export async function runSearchLogs(
 			server: match.server,
 			environment: match.environment,
 			logFile: match.logFile,
-			// Line number inside the scanned tail window (1-based), not the
-			// absolute file line — the scan never reads the whole file.
+			// 扫描尾部窗口内的行号（从 1 开始），不是文件的
+			// 绝对行号 —— 扫描从不读取整个文件。
 			lineNumber: match.lineInWindow,
 			timestamp: match.timestamp,
 			matchedLine: match.matchedLine,
@@ -282,7 +282,7 @@ export async function runSearchLogs(
 			contextAfter: match.contextAfter
 		})),
 		matchesTruncated,
-		// null = not detected. Never fabricated.
+		// null = 未检测到。绝不捏造。
 		requestParameters: requestParameters.length > 0 ? requestParameters : null,
 		response: responses.length > 0 ? responses : null,
 		sql: sql.length > 0 ? sql : null,
@@ -295,16 +295,16 @@ export async function runSearchLogs(
 		}
 	};
 
-	// Single exit point: every string/structure is masked before serialization.
+	// 唯一出口：所有字符串/结构在序列化前统一脱敏。
 	return maskDeep(payload);
 }
 
 /**
- * Register the single MVP tool: search_logs.
+ * 注册唯一的 MVP 工具：search_logs。
  *
- * Security note: this server exposes NO arbitrary shell execution tool.
- * Remote commands are built only from fixed, read-only templates with
- * strictly validated and quoted arguments (see ssh/ and security/ modules).
+ * 安全说明：本服务不暴露任何任意 shell 执行工具。
+ * 远程命令只由固定的只读模板构建，参数经过严格
+ * 校验并加引号（见 ssh/ 与 security/ 模块）。
  */
 export function registerSearchLogsTool(server: McpServer, deps: SearchLogsDependencies = {}): void {
 	server.registerTool(

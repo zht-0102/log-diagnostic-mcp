@@ -75,7 +75,7 @@ describe("shellQuote", () => {
 
 	it("neutralizes injection payloads as literal strings", () => {
 		const quoted = shellQuote("'; rm -rf / #");
-		// Result is one quoted word: leading quote, escaped inner quotes, trailing quote.
+		// 结果是一个带引号的单词：开头引号、转义的内部引号、结尾引号。
 		expect(quoted.startsWith("'")).toBe(true);
 		expect(quoted.endsWith("'")).toBe(true);
 		expect(quoted).toBe("''\\''; rm -rf / #'");

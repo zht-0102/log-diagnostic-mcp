@@ -5,8 +5,8 @@ export const SERVER_NAME = "log-diagnostic-mcp";
 export const SERVER_VERSION = "0.1.0";
 
 /**
- * Create the MCP server instance with all tools registered.
- * Kept as a factory so tests can construct isolated instances.
+ * 创建注册好全部工具的 MCP 服务器实例。
+ * 封装为工厂函数，方便测试构造相互隔离的实例。
  */
 export function createServer(deps: SearchLogsDependencies = {}): McpServer {
 	const server = new McpServer(

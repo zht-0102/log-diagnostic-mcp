@@ -1,35 +1,35 @@
 /**
- * Response extraction from log context lines.
+ * 从日志上下文行中提取响应内容。
  *
- * Targets common Java / Spring Boot log shapes:
+ * 面向 Java / Spring Boot 日志中常见的形态：
  *   Response: {...}
  *   Result: {...}
  *   Return: {...}
  *   response body: {...}
  *
- * Very large responses are truncated and flagged with
- * `responseTruncated: true` — never return hundreds of KB to the AI.
+ * 超大响应会被截断并以 `responseTruncated: true` 标记 ——
+ * 绝不向 AI 返回几百 KB 的内容。
  */
 
 import { extractBalancedJson, tryParseJson } from "./request.js";
 
 export interface ResponseExtraction {
-	/** Structured body when JSON could be parsed, else raw text, else null. */
+	/** JSON 可解析时为结构化内容，否则为原始文本，都没有时为 null。 */
 	body: unknown | null;
-	/** Which marker line produced the match, e.g. "Response:". */
+	/** 命中的标记行，如 "Response:"。 */
 	detectedMarker: string | null;
-	/** True when the payload was cut to the max length. */
+	/** 载荷被截断至最大长度时为 true。 */
 	responseTruncated: boolean;
 }
 
 const RESPONSE_MARKERS = ["Response:", "Result:", "Return:", "response body:", "ResponseBody:", "output:"];
 
-/** Hard cap for response payloads returned to the AI client. */
+/** 返回给 AI 客户端的响应载荷硬性上限。 */
 export const MAX_RESPONSE_CHARS = 4000;
 
 /**
- * Scan context lines for a response payload.
- * JSON is parsed when possible; otherwise the raw (truncated) text is kept.
+ * 扫描上下文行中的响应载荷。
+ * 尽量解析 JSON；无法解析时保留原始（已截断）文本。
  */
 export function extractResponse(lines: string[]): ResponseExtraction {
 	for (const line of lines) {
@@ -55,7 +55,7 @@ export function extractResponse(lines: string[]): ResponseExtraction {
 				}
 			}
 
-			// Non-JSON response: keep raw text, truncated.
+			// 非 JSON 响应：保留已截断的原始文本。
 			const truncated = afterMarker.length > MAX_RESPONSE_CHARS;
 			return {
 				body: afterMarker.slice(0, MAX_RESPONSE_CHARS),

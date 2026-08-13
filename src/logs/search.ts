@@ -7,27 +7,27 @@ import {
 import { validateKeyword } from "../security/shellGuard.js";
 
 /**
- * Single-server log search.
+ * 单服务器日志搜索。
  *
- * Strategy (never scans full history):
- * 1. List `*.log` files in each configured logPath (newest first, capped).
- * 2. For each file, grep the keyword only inside the last `scanLines` lines.
- * 3. Collect matches with their position inside the scanned window.
+ * 策略（绝不扫描全量历史）：
+ * 1. 列出每个已配置 logPath 下的 `*.log` 文件（最新的在前，有上限）。
+ * 2. 对每个文件，只在最后 `scanLines` 行内 grep 关键词。
+ * 3. 收集命中行及其在扫描窗口内的位置。
  */
 
-/** A single keyword hit. */
+/** 单次关键词命中。 */
 export interface LogMatch {
-	/** Configured server name. */
+	/** 配置中的服务器名。 */
 	server: string;
-	/** Environment of the server, e.g. prod. */
+	/** 服务器所属环境，如 prod。 */
 	environment: string;
-	/** Absolute path of the log file on the remote server. */
+	/** 远程服务器上日志文件的绝对路径。 */
 	logFile: string;
-	/** 1-based line index inside the scanned tail window. */
+	/** 在扫描（tail）窗口内的行号，1 开始。 */
 	lineInWindow: number;
-	/** The matched log line (raw, before masking). */
+	/** 命中的日志行（原始内容，未脱敏）。 */
 	matchedLine: string;
-	/** Timestamp parsed from the line, ISO string, or null when not detected. */
+	/** 从行内解析出的时间戳（ISO 字符串）；未识别时为 null。 */
 	timestamp: string | null;
 }
 
@@ -35,27 +35,27 @@ export interface SingleServerSearchResult {
 	server: string;
 	environment: string;
 	matches: LogMatch[];
-	/** Non-fatal problems (missing dirs, permission errors...), one per resource. */
+	/** 非致命问题（目录不存在、权限错误等），每条资源一条。 */
 	errors: string[];
-	/** True when this server hit the match cap and more matches may exist. */
+	/** 该服务器命中数达到上限、可能还有更多命中时为 true。 */
 	truncated: boolean;
 }
 
 export interface SearchOptions {
 	keyword: string;
-	/** Stop collecting after this many matches on this server. */
+	/** 单台服务器收集到这么多命中后停止。 */
 	maxMatches: number;
 }
 
-/** Only this many log files per configured path are scanned (newest first). */
+/** 每个配置路径最多扫描的日志文件数（最新的在前）。 */
 export const MAX_FILES_PER_PATH = 5;
 
-/** grep exit codes: 0 = matches, 1 = no matches, >=2 = error. */
+/** grep 退出码：0 = 有匹配，1 = 无匹配，>=2 = 出错。 */
 function isGrepError(result: ExecResult): boolean {
 	return result.exitCode >= 2;
 }
 
-/** Parse `grep -n` output lines of the form `<lineNumber>:<content>`. */
+/** 解析 `grep -n` 输出中形如 `<行号>:<内容>` 的行。 */
 export function parseGrepOutput(stdout: string): Array<{ lineInWindow: number; matchedLine: string }> {
 	const results: Array<{ lineInWindow: number; matchedLine: string }> = [];
 	for (const line of stdout.split("\n")) {
@@ -67,14 +67,14 @@ export function parseGrepOutput(stdout: string): Array<{ lineInWindow: number; m
 	return results;
 }
 
-/** List log files in one directory; returns [] with an error note when unavailable. */
+/** 列出单个目录下的日志文件；目录不可用时返回 [] 并记录一条错误。 */
 async function listLogFiles(
 	executor: SshExecutor,
 	directory: string,
 	errors: string[]
 ): Promise<string[]> {
 	const result = await executor.exec(buildListLogFilesCommand(directory));
-	// grep exit 1: directory exists but contains no .log files — not an error.
+	// grep 退出码 1：目录存在但没有 .log 文件 —— 不算错误。
 	if (result.exitCode === 1) return [];
 	if (isGrepError(result)) {
 		errors.push(`Cannot list log files in ${directory}: ${result.stderr.trim() || `exit code ${result.exitCode}`}`);
@@ -88,8 +88,8 @@ async function listLogFiles(
 }
 
 /**
- * Search one server for a keyword across all its configured log paths.
- * The executor is injected so tests can substitute a mock transport.
+ * 在一台服务器的所有已配置日志路径中搜索关键词。
+ * executor 通过参数注入，方便测试替换为 mock 传输层。
  */
 export async function searchSingleServer(
 	executor: SshExecutor,
@@ -124,7 +124,7 @@ export async function searchSingleServer(
 				errors.push(`Search failed in ${filePath}: ${result.stderr.trim() || `exit code ${result.exitCode}`}`);
 				continue;
 			}
-			if (result.exitCode === 1) continue; // no matches in this file
+			if (result.exitCode === 1) continue; // 该文件内无匹配
 
 			for (const hit of parseGrepOutput(result.stdout)) {
 				if (matches.length >= options.maxMatches) {
@@ -137,7 +137,7 @@ export async function searchSingleServer(
 					logFile: filePath,
 					lineInWindow: hit.lineInWindow,
 					matchedLine: hit.matchedLine,
-					timestamp: null // filled by the time-range step
+					timestamp: null // 由时间范围步骤回填
 				});
 			}
 			if (result.truncated || result.timedOut) {

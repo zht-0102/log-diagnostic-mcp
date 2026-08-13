@@ -46,7 +46,7 @@ function streamOf(stdout: string, exitCode: number): ExecStreamLike {
 	return emitter;
 }
 
-/** Mock executor that returns one match per server in app.log. */
+/** Mock executor：每台服务器在 app.log 中返回一条匹配。 */
 function mockExecutor(server: ServerConfig): SshExecutor {
 	const factory = async (): Promise<SshTransportLike> => ({
 		exec(command: string, callback) {
@@ -64,7 +64,7 @@ function mockExecutor(server: ServerConfig): SshExecutor {
 	return new SshExecutor(server, config.limits, new ConcurrencyLimiter(5), factory);
 }
 
-/** Mock executor that fails the SSH connection. */
+/** Mock executor：SSH 连接失败。 */
 function failingExecutor(server: ServerConfig): SshExecutor {
 	return new SshExecutor(server, config.limits, new ConcurrencyLimiter(5), async () => {
 		throw new Error(`SSH connection to ${server.host}:22 failed: connection refused`);
@@ -115,7 +115,7 @@ describe("searchMultipleServers", () => {
 			{ keyword: "kw", maxMatchesPerServer: 10 },
 			mockExecutor
 		);
-		// 3 servers configured, maxServers = 2
+		// 配置了 3 台服务器，maxServers = 2
 		expect(result.searchedServers).toHaveLength(2);
 		expect(result.truncated).toBe(true);
 	});

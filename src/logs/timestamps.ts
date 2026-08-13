@@ -1,18 +1,18 @@
 /**
- * Log timestamp parsing.
+ * 日志时间戳解析。
  *
- * Supports the timestamp shapes most common in Java / Spring Boot logs:
+ * 支持 Java / Spring Boot 日志中最常见的几种时间戳形态：
  * - `2026-08-13 10:01:02` / `2026-08-13 10:01:02.123`
- * - `2026-08-13T10:01:02.123+08:00` (ISO 8601)
- * - `2026/08/13 10:01:02`
+ * - `2026-08-13T10:01:02.123+08:00`（ISO 8601）
+ * - `2026-08-13 10:01:02`（斜杠分隔形态）
  *
- * Lines without a recognizable timestamp return null; callers decide
- * whether to keep them conservatively during time filtering.
+ * 无法识别时间戳的行返回 null；由调用方决定在时间过滤时
+ * 是否保守保留。
  */
 
 const PATTERNS: Array<{ regex: RegExp; toIso: (m: RegExpMatchArray) => string }> = [
 	{
-		// ISO 8601 with explicit offset/Z, e.g. 2026-08-13T10:01:02.123+08:00
+		// 带显式偏移/Z 的 ISO 8601，如 2026-08-13T10:01:02.123+08:00
 		regex: /(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d{1,9})?(Z|[+-]\d{2}:?\d{2})?/,
 		toIso: (m) => {
 			const ms = m[7] ? m[7].slice(1, 4).padEnd(3, "0") : "000";
@@ -21,7 +21,7 @@ const PATTERNS: Array<{ regex: RegExp; toIso: (m: RegExpMatchArray) => string }>
 		}
 	},
 	{
-		// Common Java log format: 2026-08-13 10:01:02.123 (no timezone — treated as local server time)
+		// 常见 Java 日志格式：2026-08-13 10:01:02.123（无时区 —— 按服务器本地时间处理）
 		regex: /(\d{4})-(\d{2})-(\d{2})[ ](\d{2}):(\d{2}):(\d{2})(\.\d{1,9})?/,
 		toIso: (m) => {
 			const ms = m[7] ? m[7].slice(1, 4).padEnd(3, "0") : "000";
@@ -29,24 +29,24 @@ const PATTERNS: Array<{ regex: RegExp; toIso: (m: RegExpMatchArray) => string }>
 		}
 	},
 	{
-		// Slash-separated: 2026/08/13 10:01:02
+		// 斜杠分隔：2026/08/13 10:01:02
 		regex: /(\d{4})\/(\d{2})\/(\d{2})[ ](\d{2}):(\d{2}):(\d{2})/,
 		toIso: (m) => `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}.000`
 	}
 ];
 
 /**
- * Extract a timestamp from a log line.
- * Returns an ISO-ish string, or null when no known pattern is found.
- * Zone-less timestamps are kept zone-less on purpose: they compare
- * correctly against each other, and we never invent a timezone.
+ * 从一行日志中提取时间戳。
+ * 返回类 ISO 字符串；未命中任何已知模式时返回 null。
+ * 不带时区的时间戳故意保持不带时区：它们之间可以正确比较，
+ * 我们也绝不自行猜测时区。
  */
 export function parseLineTimestamp(line: string): string | null {
 	for (const { regex, toIso } of PATTERNS) {
 		const match = line.match(regex);
 		if (match) {
 			const iso = toIso(match);
-			// Guard against impossible dates like 2026-13-45
+			// 拦截不可能存在的日期，如 2026-13-45
 			return Number.isNaN(Date.parse(iso)) ? null : iso;
 		}
 	}
@@ -54,8 +54,8 @@ export function parseLineTimestamp(line: string): string | null {
 }
 
 /**
- * Parse a user-supplied query boundary (ISO 8601).
- * Throws with a clear message when invalid.
+ * 解析用户提供的查询边界（ISO 8601）。
+ * 非法时抛出带说明的错误。
  */
 export function parseQueryTime(value: string, field: "startTime" | "endTime"): Date {
 	const date = new Date(value);
@@ -66,13 +66,13 @@ export function parseQueryTime(value: string, field: "startTime" | "endTime"): D
 }
 
 /**
- * Compare a parsed line timestamp against the query window.
+ * 将解析出的行时间戳与查询窗口比较。
  *
- * Rules:
- * - Line has no timestamp → keep (conservative: never silently drop).
- * - Line timestamp has no zone → compared as *local* time of the server;
- *   query times are converted to local components before comparison.
- * - Line timestamp has a zone → compared as absolute instants.
+ * 规则：
+ * - 行没有时间戳 → 保留（保守策略：绝不静默丢弃）。
+ * - 行时间戳不带时区 → 按服务器*本地*时间比较；
+ *   比较前先把查询时间换算成本地分量。
+ * - 行时间戳带时区 → 按绝对时刻比较。
  */
 export function isWithinWindow(
 	lineTimestamp: string | null,
@@ -87,14 +87,14 @@ export function isWithinWindow(
 	if (hasZone) {
 		lineMs = Date.parse(lineTimestamp);
 	} else {
-		// Interpret as local server time: shift into UTC by the assumed offset.
+		// 按服务器本地时间解释：用假定的偏移量折算回 UTC。
 		lineMs = Date.parse(`${lineTimestamp}Z`) - localOffsetMs;
 	}
 	if (Number.isNaN(lineMs)) return true;
 	return lineMs >= startMs && lineMs <= endMs;
 }
 
-/** Resolve the query window; defaults to the last 30 minutes. */
+/** 解析查询时间窗口；默认最近 30 分钟。 */
 export function resolveTimeWindow(
 	startTime: string | undefined,
 	endTime: string | undefined
