@@ -118,6 +118,7 @@ function scriptedExecutor(opts: {
 	window: string;
 	grepOutput: string;
 	server: ServerConfig;
+	archiveFiles?: string;
 	recordCommands?: string[];
 }): SshExecutor {
 	const limits = fakeConfig().limits;
@@ -125,6 +126,10 @@ function scriptedExecutor(opts: {
 		exec(command: string, callback) {
 			opts.recordCommands?.push(command);
 			if (command.startsWith("ls -1t ")) {
+				if (command.includes("/260812")) {
+					callback(undefined, streamOf(opts.archiveFiles ?? "", opts.archiveFiles ? 0 : 1));
+					return;
+				}
 				callback(undefined, streamOf("app.log\n", 0));
 				return;
 			}
@@ -133,6 +138,10 @@ function scriptedExecutor(opts: {
 				return;
 			}
 			if (command.startsWith("tail -n ")) {
+				callback(undefined, streamOf(opts.window, 0));
+				return;
+			}
+			if (command.startsWith("gzip -cd ")) {
 				callback(undefined, streamOf(opts.window, 0));
 				return;
 			}
@@ -278,6 +287,49 @@ describe("search_logs full pipeline (mock SSH)", () => {
 		expect(commands.some((command) => command.startsWith("ls -1t "))).toBe(false);
 		expect(commands.filter((command) => command.includes("| grep -n -F -e"))).toEqual([
 			"tail -n 20000 '/data/logs/shipping/saas.log' | grep -n -F -e '2832996880440973688'"
+		]);
+	});
+
+	it("searches SaaS archived gzip logs for an explicit historical time range", async () => {
+		const saasLine =
+			"2026-08-12 03:51:10.123  INFO SKA00 app1 1 2832996880440973688 nosrt notimecost 0.0.0.0 nouser nodomain nouri --- [task-DealwithdatalinkTask-64] c.s.s.i.p.service.PosSaleInterfaceImpl   : PosSaletoIvn:{\"saledate\":\"2026-06-15\",\"datatype\":\"I\"}";
+		const window = `${saasLine}\n`;
+		const commands: string[] = [];
+
+		const client = await connectClient({
+			loadConfiguration: fakeConfig,
+			createExecutor: (server) =>
+				scriptedExecutor({
+					window,
+					grepOutput: `1:${saasLine}`,
+					archiveFiles: "saas.log.260812.10.gz\n",
+					server,
+					recordCommands: commands
+				})
+		});
+
+		const result = await client.callTool({
+			name: "search_logs",
+			arguments: {
+				keyword: "2832996880440973688",
+				startTime: "2026-08-12T03:40:00+08:00",
+				endTime: "2026-08-12T04:20:00+08:00",
+				contextBefore: 0,
+				contextAfter: 0,
+				mode: "saas_event"
+			}
+		});
+		const payload = parsePayload(result);
+
+		expect(payload.status).toBe("success");
+		expect(payload.query.archivePolicy).toBe("auto");
+		expect(payload.query.archiveDateDirectories).toEqual(["260812"]);
+		expect(payload.query.includeCurrentLogs).toBe(false);
+		expect(payload.matches[0].logFile).toBe("/data/logs/shipping/260812/saas.log.260812.10.gz");
+		expect(commands).toEqual([
+			"ls -1t '/data/logs/shipping/260812' | grep -E '^saas\\.log\\.260812.*\\.gz$'",
+			"gzip -cd '/data/logs/shipping/260812/saas.log.260812.10.gz' | grep -n -F -e '2832996880440973688'",
+			"gzip -cd '/data/logs/shipping/260812/saas.log.260812.10.gz'"
 		]);
 	});
 

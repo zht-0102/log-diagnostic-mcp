@@ -1,6 +1,6 @@
 import type { ServerConfig, LimitsConfig } from "../server/config.js";
 import type { SshExecutor } from "../ssh/connection.js";
-import { buildTailCommand } from "../ssh/commands.js";
+import { buildGzipCatCommand, buildTailCommand } from "../ssh/commands.js";
 import { isWithinWindow, parseLineTimestamp } from "./timestamps.js";
 import type { LogMatch } from "./search.js";
 
@@ -90,7 +90,9 @@ export async function enrichMatchesWithContext(
 	for (const [logFile, fileMatches] of byFile) {
 		let windowLines: string[] | null = null;
 
-		const result = await executor.exec(buildTailCommand(limits.scanLines, logFile));
+			const result = await executor.exec(
+				logFile.endsWith(".gz") ? buildGzipCatCommand(logFile) : buildTailCommand(limits.scanLines, logFile)
+			);
 		if (result.exitCode === 0) {
 			windowLines = result.stdout.split("\n");
 			// 去掉末尾换行产生的空元素。

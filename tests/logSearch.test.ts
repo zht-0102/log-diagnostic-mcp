@@ -44,6 +44,7 @@ function streamOf(stdout: string, exitCode: number, stderr = ""): ExecStreamLike
  */
 function scriptedExecutor(opts: {
 	files?: string;
+	archiveFiles?: string;
 	grepOutput?: string;
 	grepExit?: number;
 	recordCommands?: string[];
@@ -52,6 +53,11 @@ function scriptedExecutor(opts: {
 		exec(command: string, callback) {
 			opts.recordCommands?.push(command);
 			if (command.startsWith("ls -1t ")) {
+				if (command.includes("/260812")) {
+					const files = opts.archiveFiles ?? "";
+					callback(undefined, streamOf(files, files ? 0 : 1));
+					return;
+				}
 				const files = opts.files ?? "";
 				callback(undefined, streamOf(files, files ? 0 : 1));
 				return;
@@ -178,5 +184,32 @@ describe("searchSingleServer", () => {
 			})
 		).rejects.toThrow(/Invalid keyword/);
 		expect(commands).toEqual([]);
+	});
+
+	it("searches archived gzip logs when archive date directories are provided", async () => {
+		const commands: string[] = [];
+		const executor = scriptedExecutor({
+			archiveFiles: "saas.log.260812.10.gz\n",
+			grepOutput: "88:2026-08-12 03:51:10.123 INFO archive hit\n",
+			recordCommands: commands
+		});
+		const result = await searchSingleServer(executor, serverConfig, limits, {
+			keyword: "archive hit",
+			maxMatches: 10,
+			logFileName: "saas.log",
+			includeCurrentLogs: false,
+			archiveDateDirectories: ["260812"]
+		});
+
+		expect(result.matches).toHaveLength(1);
+		expect(result.matches[0]).toMatchObject({
+			logFile: "/data/logs/shipping/260812/saas.log.260812.10.gz",
+			lineInWindow: 88,
+			matchedLine: "2026-08-12 03:51:10.123 INFO archive hit"
+		});
+		expect(commands).toEqual([
+			"ls -1t '/data/logs/shipping/260812' | grep -E '^saas\\.log\\.260812.*\\.gz$'",
+			"gzip -cd '/data/logs/shipping/260812/saas.log.260812.10.gz' | grep -n -F -e 'archive hit'"
+		]);
 	});
 });

@@ -1,9 +1,12 @@
 import type { ServerConfig, LimitsConfig } from "../server/config.js";
 import type { SshExecutor, ExecResult } from "../ssh/connection.js";
 import {
+	buildGzipGrepCommand,
+	buildListArchiveLogFilesCommand,
 	buildGrepTailCommand,
 	buildListLogFilesCommand
 } from "../ssh/commands.js";
+import { resolveArchiveLogFile } from "./archive.js";
 import { validateKeyword } from "../security/shellGuard.js";
 
 /**
@@ -47,6 +50,8 @@ export interface SearchOptions {
 	maxMatches: number;
 	/** 指定时只搜索该文件名，跳过目录内日志文件枚举。 */
 	logFileName?: string;
+	archiveDateDirectories?: string[];
+	includeCurrentLogs?: boolean;
 }
 
 /** 每个配置路径最多扫描的日志文件数（最新的在前）。 */
@@ -89,6 +94,27 @@ async function listLogFiles(
 		.slice(0, MAX_FILES_PER_PATH);
 }
 
+async function listArchiveLogFiles(
+	executor: SshExecutor,
+	directory: string,
+	logFileName: string,
+	dateDirectory: string,
+	errors: string[]
+): Promise<string[]> {
+	const result = await executor.exec(buildListArchiveLogFilesCommand(directory, logFileName, dateDirectory));
+	if (result.exitCode === 1) return [];
+	if (isGrepError(result)) {
+		errors.push(
+			`Cannot list archive log files in ${directory}/${dateDirectory}: ${result.stderr.trim() || `exit code ${result.exitCode}`}`
+		);
+		return [];
+	}
+	return result.stdout
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line.length > 0);
+}
+
 function resolveFiles(options: SearchOptions): string[] | null {
 	return options.logFileName ? [options.logFileName] : null;
 }
@@ -115,15 +141,18 @@ export async function searchSingleServer(
 			break;
 		}
 
-		const files = resolveFiles(options) ?? (await listLogFiles(executor, logPath, errors));
-		for (const fileName of files) {
-			if (matches.length >= options.maxMatches) {
-				truncated = true;
-				break;
+			const currentFiles =
+				options.includeCurrentLogs === false
+					? []
+					: (resolveFiles(options) ?? (await listLogFiles(executor, logPath, errors)));
+			for (const fileName of currentFiles) {
+				if (matches.length >= options.maxMatches) {
+					truncated = true;
+					break;
 			}
 
-			const filePath = `${logPath}/${fileName}`;
-			const command = buildGrepTailCommand(limits.scanLines, options.keyword, filePath);
+				const filePath = `${logPath}/${fileName}`;
+				const command = buildGrepTailCommand(limits.scanLines, options.keyword, filePath);
 			const result = await executor.exec(command);
 
 			if (isGrepError(result)) {
@@ -152,9 +181,50 @@ export async function searchSingleServer(
 						? `Search timed out in ${filePath}`
 						: `Search output truncated in ${filePath}`
 				);
+				}
+			}
+
+			if (!options.logFileName || !options.archiveDateDirectories) continue;
+			for (const dateDirectory of options.archiveDateDirectories) {
+				const archiveFiles = await listArchiveLogFiles(executor, logPath, options.logFileName, dateDirectory, errors);
+				for (const fileName of archiveFiles) {
+					if (matches.length >= options.maxMatches) {
+						truncated = true;
+						break;
+					}
+					const archive = resolveArchiveLogFile(logPath, options.logFileName, dateDirectory, fileName);
+					const result = await executor.exec(buildGzipGrepCommand(options.keyword, archive.filePath));
+
+					if (isGrepError(result)) {
+						errors.push(`Search failed in ${archive.filePath}: ${result.stderr.trim() || `exit code ${result.exitCode}`}`);
+						continue;
+					}
+					if (result.exitCode === 1) continue;
+
+					for (const hit of parseGrepOutput(result.stdout)) {
+						if (matches.length >= options.maxMatches) {
+							truncated = true;
+							break;
+						}
+						matches.push({
+							server: server.name,
+							environment: server.environment,
+							logFile: archive.filePath,
+							lineInWindow: hit.lineInWindow,
+							matchedLine: hit.matchedLine,
+							timestamp: null
+						});
+					}
+					if (result.truncated || result.timedOut) {
+						errors.push(
+							result.timedOut
+								? `Search timed out in ${archive.filePath}`
+								: `Search output truncated in ${archive.filePath}`
+						);
+					}
+				}
 			}
 		}
-	}
 
 	return { server: server.name, environment: server.environment, matches, errors, truncated };
 }

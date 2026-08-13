@@ -47,6 +47,12 @@ export function buildGzipTailCommand(scanLines: number, filePath: string): strin
 	return `gzip -cd ${shellQuote(filePath)} | tail -n ${scanLines}`;
 }
 
+/** `gzip -cd <file.gz>` —— 只读解压压缩日志，用于按 grep 命中行号补齐上下文。 */
+export function buildGzipCatCommand(filePath: string): string {
+	validateLogPath(filePath);
+	return `gzip -cd ${shellQuote(filePath)}`;
+}
+
 /**
  * `cat <file> | awk 'NR>=start && NR<=end'` ——
  * 读取文件的物理行区间 [fromLine, toLine]（含两端）。
@@ -76,4 +82,21 @@ export function buildLineCountCommand(filePath: string): string {
 export function buildListLogFilesCommand(directory: string): string {
 	validateLogPath(directory);
 	return `ls -1t ${shellQuote(directory)} | grep -E '\\.log(\\.[0-9]+)?$'`;
+}
+
+export function buildListArchiveLogFilesCommand(
+	directory: string,
+	logFileName: string,
+	dateDirectory: string
+): string {
+	validateLogPath(directory);
+	if (!/^[\w.\-]+$/.test(logFileName)) {
+		throw new Error(`Invalid log file name: ${logFileName}`);
+	}
+	if (!/^\d{6}$/.test(dateDirectory)) {
+		throw new Error(`Invalid archive date directory: ${dateDirectory}`);
+	}
+	const escapedLogName = logFileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	const pattern = `^${escapedLogName}\\.${dateDirectory}.*\\.gz$`;
+	return `ls -1t ${shellQuote(`${directory}/${dateDirectory}`)} | grep -E ${shellQuote(pattern)}`;
 }

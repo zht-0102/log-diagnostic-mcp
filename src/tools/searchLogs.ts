@@ -4,6 +4,7 @@ import { loadConfig, type AppConfig, type LimitsConfig, type ServerConfig } from
 import { ConcurrencyLimiter, SshExecutor } from "../ssh/connection.js";
 import { searchMultipleServers } from "../logs/multiSearch.js";
 import { enrichMatchesWithContext, type MatchWithContext, type TimeWindow } from "../logs/context.js";
+import { archiveDateDirectoriesBetween, archiveDateDirectoryFor } from "../logs/archive.js";
 import { resolveTimeWindow } from "../logs/timestamps.js";
 import { extractRequestParameters } from "../parsers/request.js";
 import { extractResponse } from "../parsers/response.js";
@@ -65,13 +66,17 @@ export const searchLogsInputSchema = {
 		.enum(["lines", "saas_event"])
 		.default("lines")
 		.describe("Return plain matched lines or aggregate ShenNong SaaS log events"),
-	logFileName: z
+		logFileName: z
 		.string()
 		.regex(/^[\w.\-]+$/)
 		.max(100)
-		.optional()
-		.describe("Restrict search to one log file name under each configured logPath. Defaults to saas.log in saas_event mode"),
-	eventLimit: z
+			.optional()
+			.describe("Restrict search to one log file name under each configured logPath. Defaults to saas.log in saas_event mode"),
+		archivePolicy: z
+			.enum(["auto", "current_only", "archive_only"])
+			.default("auto")
+			.describe("auto searches archived .gz logs only when an explicit time range is provided; current_only skips archives; archive_only skips current logs"),
+		eventLimit: z
 		.number()
 		.int()
 		.min(1)
@@ -147,6 +152,16 @@ export async function runSearchLogs(
 		// （通常与目标机器集群同区）。
 		localOffsetMs: -new Date().getTimezoneOffset() * 60_000
 	};
+	const effectiveLogFileName = args.logFileName ?? (args.mode === "saas_event" ? "saas.log" : undefined);
+	const hasExplicitTimeRange = Boolean(args.startTime || args.endTime);
+	const archiveDateDirectories =
+		effectiveLogFileName && args.archivePolicy !== "current_only" && (hasExplicitTimeRange || args.archivePolicy === "archive_only")
+			? archiveDateDirectoriesBetween(startMs, endMs, timeWindow.localOffsetMs)
+			: [];
+	const todayDirectory = archiveDateDirectoryFor(Date.now(), timeWindow.localOffsetMs);
+	const includeCurrentLogs =
+		args.archivePolicy !== "archive_only" &&
+		(args.archivePolicy === "current_only" || !hasExplicitTimeRange || archiveDateDirectories.includes(todayDirectory));
 
 	// 共享一个限流器 + 每台服务器一个 executor，使搜索与上下文
 	// 补全复用同一批对象（并遵守连接数上限）。
@@ -170,7 +185,9 @@ export async function runSearchLogs(
 			environment: args.environment,
 			serverNames: args.serverNames,
 			maxMatchesPerServer: config.limits.maxLines,
-			logFileName: args.logFileName ?? (args.mode === "saas_event" ? "saas.log" : undefined)
+			logFileName: effectiveLogFileName,
+			archiveDateDirectories,
+			includeCurrentLogs
 		},
 		executorFor
 	);
@@ -303,7 +320,10 @@ export async function runSearchLogs(
 			contextBefore: args.contextBefore,
 			contextAfter: args.contextAfter,
 			mode: args.mode,
-			logFileName: args.logFileName ?? (args.mode === "saas_event" ? "saas.log" : null),
+			logFileName: effectiveLogFileName ?? null,
+			archivePolicy: args.archivePolicy,
+			archiveDateDirectories,
+			includeCurrentLogs,
 			eventLimit: args.eventLimit,
 			includeRawLines: args.includeRawLines,
 			searchedServers: multi.searchedServers,

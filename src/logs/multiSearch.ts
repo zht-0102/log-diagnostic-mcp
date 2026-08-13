@@ -19,6 +19,8 @@ export interface MultiServerQuery {
 	maxMatchesPerServer: number;
 	/** 指定时只搜索该日志文件名。 */
 	logFileName?: string;
+	archiveDateDirectories?: string[];
+	includeCurrentLogs?: boolean;
 }
 
 export interface MultiServerResult {
@@ -81,10 +83,12 @@ export async function searchMultipleServers(
 	const settled = await Promise.allSettled(
 		toSearch.map((server) =>
 			searchSingleServer(executorFactory(server), server, config.limits, {
-				keyword: query.keyword,
-				maxMatches: query.maxMatchesPerServer,
-				logFileName: query.logFileName
-			})
+					keyword: query.keyword,
+					maxMatches: query.maxMatchesPerServer,
+					logFileName: query.logFileName,
+					archiveDateDirectories: query.archiveDateDirectories,
+					includeCurrentLogs: query.includeCurrentLogs
+				})
 		)
 	);
 

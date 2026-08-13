@@ -45,6 +45,13 @@ export function archiveDateDirectoriesBetween(
 	return directories;
 }
 
+export function archiveDateDirectoryFor(ms: number, localOffsetMs: number): string {
+	if (!Number.isFinite(ms)) {
+		throw new Error("Invalid archive timestamp");
+	}
+	return localDateToken(ms, localOffsetMs);
+}
+
 export function archiveGlobPattern(logFileName: string, dateDirectory: string): string {
 	if (!/^[\w.\-]+$/.test(logFileName)) {
 		throw new Error(`Invalid log file name: ${logFileName}`);

@@ -161,4 +161,19 @@ describe("enrichMatchesWithContext", () => {
 		expect(result.missingContext).toBe(1);
 		expect(result.errors[0]).toContain("tail: cannot open file");
 	});
+
+	it("reads gzip archives as decompressed text when fetching context", async () => {
+		const commands: string[] = [];
+		const archiveMatch: LogMatch = {
+			...baseMatch,
+			logFile: "/data/logs/shipping/260812/saas.log.260812.10.gz"
+		};
+		const executor = tailExecutor(WINDOW + "\n", 0, { recordCommands: commands });
+		const result = await enrichMatchesWithContext(executor, serverConfig, limits, [archiveMatch], 2, 2);
+
+		expect(result.enriched).toHaveLength(1);
+		expect(result.enriched[0].contextBefore).toHaveLength(2);
+		expect(result.enriched[0].contextAfter[0]).toContain("Preparing: SELECT");
+		expect(commands).toEqual(["gzip -cd '/data/logs/shipping/260812/saas.log.260812.10.gz'"]);
+	});
 });
