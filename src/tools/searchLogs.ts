@@ -9,6 +9,7 @@ import { extractRequestParameters } from "../parsers/request.js";
 import { extractResponse } from "../parsers/response.js";
 import { extractMyBatisSql, type SqlExtraction } from "../parsers/mybatisSql.js";
 import { extractExceptions, type ExceptionExtraction } from "../parsers/exception.js";
+import { groupSaasEvents, summarizeSaasEvent } from "../parsers/saasLog.js";
 import { analyzeBasics } from "../analyzer/basic.js";
 import { maskDeep } from "../security/sanitize.js";
 import { validateKeyword } from "../security/shellGuard.js";
@@ -54,7 +55,22 @@ export const searchLogsInputSchema = {
 		.min(0)
 		.max(500)
 		.default(50)
-		.describe("Number of log lines to return after each match")
+		.describe("Number of log lines to return after each match"),
+	mode: z
+		.enum(["lines", "saas_event"])
+		.default("lines")
+		.describe("Return plain matched lines or aggregate ShenNong SaaS log events"),
+	eventLimit: z
+		.number()
+		.int()
+		.min(1)
+		.max(100)
+		.default(10)
+		.describe("Maximum SaaS events returned when mode is saas_event"),
+	includeRawLines: z
+		.boolean()
+		.default(false)
+		.describe("Include raw event lines when mode is saas_event")
 };
 
 export type SearchLogsInput = z.infer<
@@ -239,6 +255,11 @@ export async function runSearchLogs(
 		}
 	}
 
+	const saasEvents =
+		args.mode === "saas_event"
+			? buildSaasEventPayload(kept, args.eventLimit, args.includeRawLines)
+			: null;
+
 	const searchErrors: string[] = [
 		...multi.failures.map((f) => `${f.server}: ${f.error}`),
 		...multi.results.flatMap((r) => r.errors),
@@ -265,6 +286,9 @@ export async function runSearchLogs(
 			endTime: new Date(endMs).toISOString(),
 			contextBefore: args.contextBefore,
 			contextAfter: args.contextAfter,
+			mode: args.mode,
+			eventLimit: args.eventLimit,
+			includeRawLines: args.includeRawLines,
 			searchedServers: multi.searchedServers,
 			skippedServers: multi.skippedServers,
 			serverLimitTruncated: multi.truncated
@@ -287,6 +311,7 @@ export async function runSearchLogs(
 		response: responses.length > 0 ? responses : null,
 		sql: sql.length > 0 ? sql : null,
 		exceptions: exceptions.length > 0 ? exceptions : null,
+		saasEvents,
 		analysis,
 		notes: {
 			droppedByTime,
@@ -297,6 +322,48 @@ export async function runSearchLogs(
 
 	// 唯一出口：所有字符串/结构在序列化前统一脱敏。
 	return maskDeep(payload);
+}
+
+function collectUniqueBlockLines(matches: MatchWithContext[]): string[] {
+	const lines: string[] = [];
+	const seen = new Set<string>();
+	for (const match of matches) {
+		for (const line of [...match.contextBefore, match.matchedLine, ...match.contextAfter]) {
+			if (seen.has(line)) continue;
+			seen.add(line);
+			lines.push(line);
+		}
+	}
+	return lines;
+}
+
+function buildSaasEventPayload(
+	matches: MatchWithContext[],
+	eventLimit: number,
+	includeRawLines: boolean
+): Array<Record<string, unknown>> {
+	return groupSaasEvents(collectUniqueBlockLines(matches))
+		.slice(0, eventLimit)
+		.map((event) => {
+			const summary = summarizeSaasEvent(event);
+			return {
+				key: event.key,
+				traceId: event.traceId,
+				thread: event.thread,
+				startTime: event.startTime,
+				endTime: event.endTime,
+				durationMs: event.durationMs,
+				levels: event.levels,
+				loggers: event.loggers,
+				entryCount: event.entries.length,
+				payloads: summary.payloads,
+				sql: summary.sql,
+				tenant: summary.tenant,
+				exceptions: summary.exceptions,
+				keyMessages: summary.keyMessages,
+				rawLines: includeRawLines ? event.entries.map((entry) => entry.line.raw) : undefined
+			};
+		});
 }
 
 /**

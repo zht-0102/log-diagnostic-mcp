@@ -219,6 +219,44 @@ describe("search_logs full pipeline (mock SSH)", () => {
 		expect(payload.analysis.confirmedFacts.join("\n")).toContain("NullPointerException");
 	});
 
+	it("returns SaaS event summaries when saas_event mode is requested", async () => {
+		const stamp = `${nowStamp()}.123`;
+		const saasLines = [
+			`${stamp}  INFO SKA00 app1 1 2832996880440973688 nosrt notimecost 0.0.0.0 nouser nodomain nouri --- [task-DealwithdatalinkTask-64] c.s.s.i.p.service.PosSaleInterfaceImpl   : PosSaletoIvn:{"saledate":"2026-06-15","datatype":"I","eshopflag":"f","terid":"16"}`,
+			`${stamp}  INFO SKA00 app1 1 2832996880440973688 nosrt notimecost 0.0.0.0 nouser nodomain nouri --- [task-DealwithdatalinkTask-64] c.s.s.i.p.service.PosSaleInterfaceImpl   : :SELECT aa.warehouse_id id from set_ter_define aa where aa.id=16`,
+			`${stamp}  INFO SKA00 app1 1 2832996880440973688 nosrt notimecost 0.0.0.0 nouser nodomain nouri --- [task-DealwithdatalinkTask-64] c.s.s.i.p.service.PosSaleInterfaceImpl   : pos回调函数>>{"MSG":"单据日期:2026-06-15不合法!输入日期应该在2026-07-01到2026-08-31","STATUS":"ERR"}`,
+			"java.sql.SQLException: 单据日期:2026-06-15不合法!输入日期应该在2026-07-01到2026-08-31",
+			"\tat com.sw.saas.inv.possale.service.PosSaleInterfaceImpl.PosSaletoIvn(PosSaleInterfaceImpl.java:622)"
+		];
+		const window = `${saasLines.join("\n")}\n`;
+		const grepOutput = `1:${saasLines[0]}\n2:${saasLines[1]}\n3:${saasLines[2]}`;
+
+		const client = await connectClient({
+			loadConfiguration: fakeConfig,
+			createExecutor: (server) => scriptedExecutor({ window, grepOutput, server })
+		});
+
+		const result = await client.callTool({
+			name: "search_logs",
+			arguments: {
+				keyword: "2832996880440973688",
+				contextBefore: 0,
+				contextAfter: 4,
+				mode: "saas_event",
+				eventLimit: 5
+			}
+		});
+		const payload = parsePayload(result);
+
+		expect(payload.status).toBe("success");
+		expect(payload.saasEvents).toHaveLength(1);
+		expect(payload.saasEvents[0].traceId).toBe("2832996880440973688");
+		expect(payload.saasEvents[0].payloads[0].label).toBe("PosSaletoIvn");
+		expect(payload.saasEvents[0].payloads[1].label).toBe("pos回调函数");
+		expect(payload.saasEvents[0].sql[0].sql).toContain("SELECT aa.warehouse_id");
+		expect(payload.saasEvents[0].exceptions[0].type).toBe("java.sql.SQLException");
+	});
+
 	it("returns null extractions and a no-match analysis when nothing hits", async () => {
 		const window = `${nowStamp()} INFO  filler\n`;
 		const client = await connectClient({
