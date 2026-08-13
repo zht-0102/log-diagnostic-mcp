@@ -146,6 +146,45 @@ SSH_PASSWORD_STAGING=replace-with-your-password
 
 敏感信息必须放在 `.env` 或操作系统环境变量中。不要把真实密码、私钥内容、Token 或生产日志写入 README、Git 提交、Issue 或聊天消息。
 
+### 服务器连接参数映射
+
+拿到服务器连接信息后，按下面的通用映射填写，不要把真实密码直接写入 `servers.yaml`：
+
+| 服务器信息 | 配置位置 | 示例格式 |
+| --- | --- | --- |
+| 主机/IP | `config/servers.yaml` 的 `host` | `host: <server-host-or-ip>` |
+| SSH 端口 | `config/servers.yaml` 的 `port` | `port: 22` |
+| 登录用户 | `config/servers.yaml` 的 `username` | `username: <ssh-user>` |
+| 密码 | `.env` 的环境变量 | `LOG_PASSWORD=<server-password>` |
+| 密码认证引用 | `config/servers.yaml` | `password: ${LOG_PASSWORD}` |
+| 私钥路径 | `.env` 的环境变量 | `SSH_PRIVATE_KEY=C:\\Users\\<user>\\.ssh\\id_ed25519` |
+| 私钥认证引用 | `config/servers.yaml` | `privateKeyPath: ${SSH_PRIVATE_KEY}` |
+| 日志目录 | `config/servers.yaml` 的 `logPaths` | `- /home/logdir/log/<service>` |
+
+密码认证的完整通用示例：
+
+```yaml
+servers:
+  - name: <server-name>
+    environment: <environment>
+    host: <server-host-or-ip>
+    port: 22
+    username: <ssh-user>
+    auth:
+      type: password
+      password: ${LOG_PASSWORD}
+    logPaths:
+      - /home/logdir/log/<service>
+```
+
+对应 `.env`：
+
+```dotenv
+LOG_PASSWORD=<server-password>
+```
+
+`<server-host-or-ip>`、`<ssh-user>`、`<server-password>`、`<service>` 和 `<environment>` 都必须替换为实际值。真实密码只放 `.env` 或系统环境变量，不能放入 README、`config/servers.yaml`、Git 或 MCP 配置文件。
+
 ### 6. 本地验证和构建
 
 ```powershell
@@ -199,13 +238,13 @@ Codex Desktop、Codex CLI 和 Codex IDE 扩展共享 `~/.codex/config.toml`。�
 Windows 推荐配置：
 
 ```toml
-[mcp_servers.log-diagnostic]
+[mcp_servers.log_diagnostic]
 command = "cmd"
 args = ["/c", "npm", "start"]
 cwd = "C:\\absolute\\path\\log-diagnostic-mcp"
 startup_timeout_sec = 120
 
-[mcp_servers.log-diagnostic.env]
+[mcp_servers.log_diagnostic.env]
 LOG_MCP_CONFIG = "C:\\absolute\\path\\log-diagnostic-mcp\\config\\servers.yaml"
 ```
 
@@ -214,18 +253,20 @@ LOG_MCP_CONFIG = "C:\\absolute\\path\\log-diagnostic-mcp\\config\\servers.yaml"
 - 将两个路径替换为工程和配置文件的真实绝对路径。
 - `cwd` 保证 `npm start`、`.env` 和默认相对路径都从工程根目录解析。
 - `LOG_MCP_CONFIG` 避免客户端工作目录变化导致找不到服务器配置。
-- 保存后点击 MCP 的 Restart，或完全退出并重新启动 Codex Desktop。
+- 服务名称使用当前 Codex 配置中的 `log_diagnostic`，不要混用 `log-diagnostic`。
+- 保存后在 Codex 的 MCP 设置中找到 `log_diagnostic`，先关闭再打开，或点击 Restart。
+- 如果仍提示缺少环境变量，确认 `.env` 中的变量名与 `servers.yaml` 中 `${变量名}` 完全一致，并确认 `cwd` 指向工程根目录。
 - 不要把 `.env` 中的密码或私钥内容复制到 Codex 配置中。
 
 也可以直接使用构建产物：
 
 ```toml
-[mcp_servers.log-diagnostic]
+[mcp_servers.log_diagnostic]
 command = "node"
 args = ["C:\\absolute\\path\\log-diagnostic-mcp\\dist\\index.js"]
 cwd = "C:\\absolute\\path\\log-diagnostic-mcp"
 
-[mcp_servers.log-diagnostic.env]
+[mcp_servers.log_diagnostic.env]
 LOG_MCP_CONFIG = "C:\\absolute\\path\\log-diagnostic-mcp\\config\\servers.yaml"
 ```
 
