@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Real secrets and real config — never commit
+.env
+config/servers.yaml
+
+# IDE / tooling local state
+.idea/
+.qoder/
+.codegraph/
+.vscode/
+
+# Logs
+*.log
+coverage/

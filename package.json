@@ -1,0 +1,47 @@
+{
+	"name": "log-diagnostic-mcp",
+	"version": "0.1.0",
+	"description": "Read-only MCP server for querying server logs over SSH and performing basic diagnosis",
+	"type": "module",
+	"license": "MIT",
+	"bin": {
+		"log-diagnostic-mcp": "dist/index.js"
+	},
+	"main": "dist/index.js",
+	"files": [
+		"dist",
+		"config/servers.example.yaml",
+		".env.example"
+	],
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsx src/index.ts",
+		"start": "node dist/index.js",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"keywords": [
+		"mcp",
+		"model-context-protocol",
+		"log",
+		"diagnosis",
+		"ssh"
+	],
+	"engines": {
+		"node": ">=20"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.12.0",
+		"dotenv": "^16.4.5",
+		"ssh2": "^1.16.0",
+		"yaml": "^2.5.0",
+		"zod": "^3.23.8"
+	},
+	"devDependencies": {
+		"@types/node": "^20.14.0",
+		"@types/ssh2": "^1.15.0",
+		"tsx": "^4.19.0",
+		"typescript": "^5.5.0",
+		"vitest": "^2.1.0"
+	}
+}
