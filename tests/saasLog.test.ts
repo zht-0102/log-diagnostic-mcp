@@ -5,7 +5,8 @@ import {
 	normalizePlaceholder,
 	groupSaasEvents,
 	summarizeSaasEvent,
-	analyzeSaasEvent
+	analyzeSaasEvent,
+	buildSaasDiagnosticEvent
 } from "../src/parsers/saasLog.js";
 
 describe("parseSaasLogLine", () => {
@@ -128,6 +129,44 @@ describe("analyzeSaasEvent", () => {
 		expect(diagnosis.confirmedFacts.join("\n")).toContain("未找到租户数据库或schema");
 		expect(diagnosis.possibleCauses.join("\n")).toContain("租户路由上下文缺失");
 		expect(diagnosis.recommendations.join("\n")).toContain("domain/cus/tenant");
+	});
+});
+
+describe("buildSaasDiagnosticEvent", () => {
+	it("formats an event as a clear diagnostic result", () => {
+		const event = groupSaasEvents([
+			"2026-08-13 13:03:48.547  INFO SKA00 app1 1 2832996880440973688 nosrt notimecost 0.0.0.0 nouser nodomain nouri --- [task-DealwithdatalinkTask-64] c.s.s.i.p.service.PosSaleInterfaceImpl   : PosSaletoIvn:{\"saledate\":\"2026-06-15\",\"datatype\":\"I\",\"eshopflag\":\"f\",\"terid\":\"16\"}",
+			"2026-08-13 13:03:48.559 DEBUG SKA00 app1 1 2832996880440973688 nosrt notimecost 0.0.0.0 nouser nodomain nouri --- [task-DealwithdatalinkTask-64] c.s.s.i.p.service.PosSaleInterfaceImpl   : pos 零售出库 流水明细:SELECT aa.id dutyid from set_pos_sale_daily aa where aa.terid='16'",
+			"2026-08-13 13:03:48.575  INFO SKA00 app1 1 2832996880440973688 nosrt notimecost 0.0.0.0 nouser nodomain nouri --- [task-DealwithdatalinkTask-64] c.s.s.i.p.service.PosSaleInterfaceImpl   : PosSaletoIvn，异常：",
+			"java.sql.SQLException: 单据日期:2026-06-15不合法!输入日期应该在2026-07-01到2026-08-31",
+			"\tat com.sw.saas.inv.possale.service.PosSaleInterfaceImpl.PosSaletoIvn(PosSaleInterfaceImpl.java:622)",
+			"\tat com.sw.saas.inv.possale.service.PosSaleInterfaceImpl.PosSaletoIvnStr(PosSaleInterfaceImpl.java:400)",
+			"2026-08-13 13:03:48.576  INFO SKA00 app1 1 2832996880440973688 nosrt notimecost 0.0.0.0 nouser nodomain nouri --- [task-DealwithdatalinkTask-64] c.s.s.i.p.service.PosSaleInterfaceImpl   : pos回调函数>>{\"MSG\":\"单据日期:2026-06-15不合法!输入日期应该在2026-07-01到2026-08-31\",\"STATUS\":\"ERR\"}"
+		])[0];
+		const summary = summarizeSaasEvent(event);
+		const diagnosis = analyzeSaasEvent(event, summary);
+
+		const diagnostic = buildSaasDiagnosticEvent(event, summary, diagnosis);
+
+		expect(diagnostic.summary).toMatchObject({
+			result: "error",
+			errorType: "java.sql.SQLException",
+			rootCause: "业务日期不在当前允许的核算期或库存账期范围内。"
+		});
+		expect(diagnostic.summary.errorMessage).toContain("单据日期:2026-06-15");
+		expect(diagnostic.summary.location).toMatchObject({
+			className: "com.sw.saas.inv.possale.service.PosSaleInterfaceImpl",
+			methodName: "PosSaletoIvn",
+			fileName: "PosSaleInterfaceImpl.java",
+			lineNumber: 622
+		});
+		expect(diagnostic.request?.label).toBe("PosSaletoIvn");
+		expect(diagnostic.response?.label).toBe("pos回调函数");
+		expect(diagnostic.sql[0].label).toBe("pos 零售出库 流水明细");
+		expect(diagnostic.context.before.join("\n")).toContain("PosSaletoIvn:{");
+		expect(diagnostic.context.error.join("\n")).toContain("java.sql.SQLException");
+		expect(diagnostic.context.after.join("\n")).toContain("pos回调函数");
+		expect(diagnostic.stackTrace[1]).toContain("PosSaleInterfaceImpl.java:622");
 	});
 });
 

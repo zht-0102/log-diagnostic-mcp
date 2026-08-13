@@ -257,6 +257,24 @@ describe("search_logs full pipeline (mock SSH)", () => {
 		expect(payload.saasEvents[0].sql[0].sql).toContain("SELECT aa.warehouse_id");
 		expect(payload.saasEvents[0].exceptions[0].type).toBe("java.sql.SQLException");
 		expect(payload.saasEvents[0].diagnosis.confirmedFacts.join("\n")).toContain("单据日期:2026-06-15");
+		expect(payload.diagnosticEvents).toHaveLength(1);
+		expect(payload.diagnosticEvents[0].summary).toMatchObject({
+			result: "error",
+			errorType: "java.sql.SQLException",
+			businessFlow: "POS零售出库回调处理"
+		});
+		expect(payload.diagnosticEvents[0].summary.location).toMatchObject({
+			methodName: "PosSaletoIvn",
+			fileName: "PosSaleInterfaceImpl.java",
+			lineNumber: 622
+		});
+		expect(payload.diagnosticEvents[0].trace).toMatchObject({
+			server: "shipping-prod-01",
+			logFile: "/data/logs/shipping/saas.log"
+		});
+		expect(payload.diagnosticEvents[0].request.label).toBe("PosSaletoIvn");
+		expect(payload.diagnosticEvents[0].response.label).toBe("pos回调函数");
+		expect(payload.diagnosticEvents[0].context.error.join("\n")).toContain("java.sql.SQLException");
 		expect(commands.some((command) => command.startsWith("ls -1t "))).toBe(false);
 		expect(commands.filter((command) => command.includes("| grep -n -F -e"))).toEqual([
 			"tail -n 20000 '/data/logs/shipping/saas.log' | grep -n -F -e '2832996880440973688'"

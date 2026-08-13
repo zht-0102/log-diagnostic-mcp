@@ -9,7 +9,12 @@ import { extractRequestParameters } from "../parsers/request.js";
 import { extractResponse } from "../parsers/response.js";
 import { extractMyBatisSql, type SqlExtraction } from "../parsers/mybatisSql.js";
 import { extractExceptions, type ExceptionExtraction } from "../parsers/exception.js";
-import { analyzeSaasEvent, groupSaasEvents, summarizeSaasEvent } from "../parsers/saasLog.js";
+import {
+	analyzeSaasEvent,
+	buildSaasDiagnosticEvent,
+	groupSaasEvents,
+	summarizeSaasEvent
+} from "../parsers/saasLog.js";
 import { analyzeBasics } from "../analyzer/basic.js";
 import { maskDeep } from "../security/sanitize.js";
 import { validateKeyword } from "../security/shellGuard.js";
@@ -266,6 +271,10 @@ export async function runSearchLogs(
 		args.mode === "saas_event"
 			? buildSaasEventPayload(kept, args.eventLimit, args.includeRawLines)
 			: null;
+	const diagnosticEvents =
+		args.mode === "saas_event"
+			? buildSaasDiagnosticPayload(kept, args.eventLimit)
+			: null;
 
 	const searchErrors: string[] = [
 		...multi.failures.map((f) => `${f.server}: ${f.error}`),
@@ -320,6 +329,7 @@ export async function runSearchLogs(
 		sql: sql.length > 0 ? sql : null,
 		exceptions: exceptions.length > 0 ? exceptions : null,
 		saasEvents,
+		diagnosticEvents,
 		analysis,
 		notes: {
 			droppedByTime,
@@ -330,6 +340,42 @@ export async function runSearchLogs(
 
 	// 唯一出口：所有字符串/结构在序列化前统一脱敏。
 	return maskDeep(payload);
+}
+
+function findSourceForEvent(
+	matches: MatchWithContext[],
+	firstRawLine: string
+): { server: string; environment: string; logFile: string } | null {
+	for (const match of matches) {
+		const block = [...match.contextBefore, match.matchedLine, ...match.contextAfter];
+		if (block.includes(firstRawLine)) {
+			return { server: match.server, environment: match.environment, logFile: match.logFile };
+		}
+	}
+	return null;
+}
+
+function buildSaasDiagnosticPayload(
+	matches: MatchWithContext[],
+	eventLimit: number
+): Array<Record<string, unknown>> {
+	return groupSaasEvents(collectUniqueBlockLines(matches))
+		.slice(0, eventLimit)
+		.map((event) => {
+			const summary = summarizeSaasEvent(event);
+			const diagnosis = analyzeSaasEvent(event, summary);
+			const diagnostic = buildSaasDiagnosticEvent(event, summary, diagnosis);
+			const source = findSourceForEvent(matches, event.entries[0]?.line.raw ?? "");
+			return {
+				...diagnostic,
+				trace: {
+					...diagnostic.trace,
+					server: source?.server ?? null,
+					environment: source?.environment ?? null,
+					logFile: source?.logFile ?? null
+				}
+			};
+		});
 }
 
 function collectUniqueBlockLines(matches: MatchWithContext[]): string[] {

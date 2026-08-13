@@ -86,6 +86,43 @@ export interface SaasEventDiagnosis {
 	recommendations: string[];
 }
 
+export interface SaasMethodLocation {
+	className: string | null;
+	methodName: string | null;
+	fileName: string | null;
+	lineNumber: number | null;
+	logger: string | null;
+}
+
+export interface SaasDiagnosticEvent {
+	summary: {
+		result: "error" | "warn" | "unknown";
+		errorType: string | null;
+		errorMessage: string | null;
+		rootCause: string | null;
+		location: SaasMethodLocation;
+		businessFlow: string | null;
+		suggestion: string | null;
+	};
+	trace: {
+		traceId: string | null;
+		thread: string;
+		startTime: string;
+		endTime: string;
+		durationMs: number;
+	};
+	request: SaasPayloadExtraction | null;
+	sql: SaasRawSqlExtraction[];
+	response: SaasPayloadExtraction | null;
+	tenant: SaasTenantRoute;
+	context: {
+		before: string[];
+		error: string[];
+		after: string[];
+	};
+	stackTrace: string[];
+}
+
 const SAAS_LOG_RE =
 	/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(\w+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+--- \[([^\]]+)\]\s+(.+?)\s+:\s?(.*)$/;
 
@@ -406,4 +443,99 @@ export function analyzeSaasEvent(
 	}
 
 	return { confirmedFacts, possibleCauses, recommendations };
+}
+
+function isResponsePayload(payload: SaasPayloadExtraction): boolean {
+	const raw = payload.rawSource;
+	return /回调|result|response|返回|STATUS|status|MSG|msg/i.test(payload.label + raw);
+}
+
+function pickLocation(summary: SaasEventSummary): SaasMethodLocation {
+	for (const exception of summary.exceptions) {
+		for (const stackLine of exception.stackTrace) {
+			const match = /^\s*at\s+((?:[\w$]+\.)+)([\w$]+)\(([^:()]+):(\d+)\)/.exec(stackLine);
+			if (!match) continue;
+			return {
+				className: match[1].slice(0, -1),
+				methodName: match[2],
+				fileName: match[3],
+				lineNumber: Number(match[4]),
+				logger: null
+			};
+		}
+	}
+	return { className: null, methodName: null, fileName: null, lineNumber: null, logger: null };
+}
+
+function contextLines(event: SaasLogEvent): { before: string[]; error: string[]; after: string[] } {
+	const lines = event.entries.map((entry) => ({
+		message: entry.line.message,
+		continuations: entry.continuations
+	}));
+	const errorIndex = lines.findIndex((line) =>
+		/异常|失败|不合法|ERROR|WARN/i.test(line.message) || line.continuations.length > 0
+	);
+	if (errorIndex === -1) {
+		return { before: lines.map((line) => line.message), error: [], after: [] };
+	}
+	return {
+		before: lines.slice(Math.max(0, errorIndex - 5), errorIndex).map((line) => line.message),
+		error: [lines[errorIndex].message, ...lines[errorIndex].continuations].filter((line) => line.length > 0),
+		after: lines.slice(errorIndex + 1, errorIndex + 6).map((line) => line.message)
+	};
+}
+
+function businessFlowFrom(event: SaasLogEvent): string | null {
+	const joined = event.entries.map((entry) => `${entry.line.logger} ${entry.line.message}`).join("\n");
+	if (/PosSale|PosSaletoIvn|库存统一接口|pos/i.test(joined)) return "POS零售出库回调处理";
+	if (/PromActivity|促销活动/i.test(joined)) return "促销活动查询或同步处理";
+	if (/tenant|schema|database/i.test(joined)) return "租户数据源路由";
+	return null;
+}
+
+export function buildSaasDiagnosticEvent(
+	event: SaasLogEvent,
+	summary: SaasEventSummary,
+	diagnosis: SaasEventDiagnosis
+): SaasDiagnosticEvent {
+	const firstException = summary.exceptions[0] ?? null;
+	const location = pickLocation(summary);
+	location.logger =
+		event.entries.find((entry) => entry.line.logger.includes(location.className?.split(".").slice(-2, -1)[0] ?? ""))?.line.logger ??
+		event.entries.find((entry) => /异常|失败|不合法|ERROR|WARN/i.test(entry.line.message + entry.line.level))?.line.logger ??
+		null;
+	const response = summary.payloads.find(isResponsePayload) ?? null;
+	const request = summary.payloads.find((payload) => payload !== response) ?? null;
+	const context = contextLines(event);
+	const result: "error" | "warn" | "unknown" =
+		firstException || diagnosis.confirmedFacts.some((fact) => /失败|不合法|异常/.test(fact))
+			? "error"
+			: event.levels.includes("WARN")
+				? "warn"
+				: "unknown";
+
+	return {
+		summary: {
+			result,
+			errorType: firstException?.type ?? null,
+			errorMessage: firstException?.message ?? diagnosis.confirmedFacts[0] ?? null,
+			rootCause: diagnosis.possibleCauses[0] ?? null,
+			location,
+			businessFlow: businessFlowFrom(event),
+			suggestion: diagnosis.recommendations[0] ?? null
+		},
+		trace: {
+			traceId: event.traceId,
+			thread: event.thread,
+			startTime: event.startTime,
+			endTime: event.endTime,
+			durationMs: event.durationMs
+		},
+		request,
+		sql: summary.sql,
+		response,
+		tenant: summary.tenant,
+		context,
+		stackTrace: firstException?.stackTrace ?? []
+	};
 }
