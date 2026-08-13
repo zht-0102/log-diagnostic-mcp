@@ -342,6 +342,7 @@ export async function runSearchLogs(
 			contextBefore: match.contextBefore,
 			contextAfter: match.contextAfter
 		})),
+		searchedSources: multi.searchedSources,
 		matchesTruncated,
 		// null = 未检测到。绝不捏造。
 		requestParameters: requestParameters.length > 0 ? requestParameters : null,

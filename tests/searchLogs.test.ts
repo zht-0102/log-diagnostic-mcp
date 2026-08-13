@@ -196,6 +196,12 @@ describe("search_logs full pipeline (mock SSH)", () => {
 		expect(payload.matches[0].timestamp).not.toBeNull();
 		expect(payload.matches[0].contextBefore.length).toBeGreaterThan(0);
 		expect(payload.matches[0].contextAfter.length).toBeGreaterThan(0);
+		expect(payload.searchedSources[0]).toMatchObject({
+			type: "current",
+			logFile: "/data/logs/shipping/app.log",
+			commandKind: "tail_grep",
+			matched: true
+		});
 
 		// 请求提取
 		expect(payload.requestParameters).not.toBeNull();
@@ -326,6 +332,17 @@ describe("search_logs full pipeline (mock SSH)", () => {
 		expect(payload.query.archiveDateDirectories).toEqual(["260812"]);
 		expect(payload.query.includeCurrentLogs).toBe(false);
 		expect(payload.matches[0].logFile).toBe("/data/logs/shipping/260812/saas.log.260812.10.gz");
+		expect(payload.searchedSources).toEqual([
+			{
+				server: "shipping-prod-01",
+				environment: "prod",
+				type: "archive",
+				logFile: "/data/logs/shipping/260812/saas.log.260812.10.gz",
+				dateDirectory: "260812",
+				commandKind: "gzip_grep",
+				matched: true
+			}
+		]);
 		expect(commands).toEqual([
 			"ls -1t '/data/logs/shipping/260812' | grep -E '^saas\\.log\\.260812.*\\.gz$'",
 			"gzip -cd '/data/logs/shipping/260812/saas.log.260812.10.gz' | grep -n -F -e '2832996880440973688'",

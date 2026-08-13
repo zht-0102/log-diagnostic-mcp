@@ -1,6 +1,11 @@
 import type { AppConfig, ServerConfig } from "../server/config.js";
 import { ConcurrencyLimiter, SshExecutor } from "../ssh/connection.js";
-import { searchSingleServer, type LogMatch, type SingleServerSearchResult } from "./search.js";
+import {
+	searchSingleServer,
+	type LogMatch,
+	type SearchedSource,
+	type SingleServerSearchResult
+} from "./search.js";
 
 /**
  * 多服务器搜索编排。
@@ -34,6 +39,7 @@ export interface MultiServerResult {
 	/** 完全失败的服务器（连接错误等）。 */
 	failures: Array<{ server: string; error: string }>;
 	matches: LogMatch[];
+	searchedSources: SearchedSource[];
 }
 
 /** 对已配置的服务器列表应用环境 / serverNames 过滤。 */
@@ -106,6 +112,7 @@ export async function searchMultipleServers(
 	});
 
 	const matches = results.flatMap((r) => r.matches);
+	const searchedSources = results.flatMap((r) => r.searchedSources);
 
 	return {
 		searchedServers: toSearch.map((s) => s.name),
@@ -113,7 +120,8 @@ export async function searchMultipleServers(
 		truncated,
 		results,
 		failures,
-		matches
+		matches,
+		searchedSources
 	};
 }
 

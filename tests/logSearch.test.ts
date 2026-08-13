@@ -106,6 +106,17 @@ describe("searchSingleServer", () => {
 		expect(result.errors).toEqual([]);
 		expect(result.truncated).toBe(false);
 		expect(result.matches).toHaveLength(1);
+		expect(result.searchedSources).toEqual([
+			{
+				server: "shipping-prod-01",
+				environment: "prod",
+				type: "current",
+				logFile: "/data/logs/shipping/app.log",
+				dateDirectory: null,
+				commandKind: "tail_grep",
+				matched: true
+			}
+		]);
 		expect(result.matches[0]).toMatchObject({
 			server: "shipping-prod-01",
 			environment: "prod",
@@ -133,6 +144,11 @@ describe("searchSingleServer", () => {
 			maxMatches: 100
 		});
 		expect(result.matches).toEqual([]);
+		expect(result.searchedSources[0]).toMatchObject({
+			type: "current",
+			logFile: "/data/logs/shipping/app.log",
+			matched: false
+		});
 		expect(result.errors).toEqual([]);
 	});
 
@@ -202,6 +218,17 @@ describe("searchSingleServer", () => {
 		});
 
 		expect(result.matches).toHaveLength(1);
+		expect(result.searchedSources).toEqual([
+			{
+				server: "shipping-prod-01",
+				environment: "prod",
+				type: "archive",
+				logFile: "/data/logs/shipping/260812/saas.log.260812.10.gz",
+				dateDirectory: "260812",
+				commandKind: "gzip_grep",
+				matched: true
+			}
+		]);
 		expect(result.matches[0]).toMatchObject({
 			logFile: "/data/logs/shipping/260812/saas.log.260812.10.gz",
 			lineInWindow: 88,

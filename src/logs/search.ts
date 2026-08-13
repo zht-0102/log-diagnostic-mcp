@@ -38,10 +38,21 @@ export interface SingleServerSearchResult {
 	server: string;
 	environment: string;
 	matches: LogMatch[];
+	searchedSources: SearchedSource[];
 	/** 非致命问题（目录不存在、权限错误等），每条资源一条。 */
 	errors: string[];
 	/** 该服务器命中数达到上限、可能还有更多命中时为 true。 */
 	truncated: boolean;
+}
+
+export interface SearchedSource {
+	server: string;
+	environment: string;
+	type: "current" | "archive";
+	logFile: string;
+	dateDirectory: string | null;
+	commandKind: "tail_grep" | "gzip_grep";
+	matched: boolean;
 }
 
 export interface SearchOptions {
@@ -132,6 +143,7 @@ export async function searchSingleServer(
 	validateKeyword(options.keyword);
 
 	const matches: LogMatch[] = [];
+	const searchedSources: SearchedSource[] = [];
 	const errors: string[] = [];
 	let truncated = false;
 
@@ -141,27 +153,37 @@ export async function searchSingleServer(
 			break;
 		}
 
-			const currentFiles =
-				options.includeCurrentLogs === false
-					? []
-					: (resolveFiles(options) ?? (await listLogFiles(executor, logPath, errors)));
-			for (const fileName of currentFiles) {
-				if (matches.length >= options.maxMatches) {
-					truncated = true;
-					break;
+		const currentFiles =
+			options.includeCurrentLogs === false
+				? []
+				: (resolveFiles(options) ?? (await listLogFiles(executor, logPath, errors)));
+		for (const fileName of currentFiles) {
+			if (matches.length >= options.maxMatches) {
+				truncated = true;
+				break;
 			}
 
-				const filePath = `${logPath}/${fileName}`;
-				const command = buildGrepTailCommand(limits.scanLines, options.keyword, filePath);
+			const filePath = `${logPath}/${fileName}`;
+			const command = buildGrepTailCommand(limits.scanLines, options.keyword, filePath);
 			const result = await executor.exec(command);
 
 			if (isGrepError(result)) {
 				errors.push(`Search failed in ${filePath}: ${result.stderr.trim() || `exit code ${result.exitCode}`}`);
 				continue;
 			}
+			const hits = result.exitCode === 1 ? [] : parseGrepOutput(result.stdout);
+			searchedSources.push({
+				server: server.name,
+				environment: server.environment,
+				type: "current",
+				logFile: filePath,
+				dateDirectory: null,
+				commandKind: "tail_grep",
+				matched: hits.length > 0
+			});
 			if (result.exitCode === 1) continue; // 该文件内无匹配
 
-			for (const hit of parseGrepOutput(result.stdout)) {
+			for (const hit of hits) {
 				if (matches.length >= options.maxMatches) {
 					truncated = true;
 					break;
@@ -181,50 +203,60 @@ export async function searchSingleServer(
 						? `Search timed out in ${filePath}`
 						: `Search output truncated in ${filePath}`
 				);
-				}
 			}
+		}
 
-			if (!options.logFileName || !options.archiveDateDirectories) continue;
-			for (const dateDirectory of options.archiveDateDirectories) {
-				const archiveFiles = await listArchiveLogFiles(executor, logPath, options.logFileName, dateDirectory, errors);
-				for (const fileName of archiveFiles) {
+		if (!options.logFileName || !options.archiveDateDirectories) continue;
+		for (const dateDirectory of options.archiveDateDirectories) {
+			const archiveFiles = await listArchiveLogFiles(executor, logPath, options.logFileName, dateDirectory, errors);
+			for (const fileName of archiveFiles) {
+				if (matches.length >= options.maxMatches) {
+					truncated = true;
+					break;
+				}
+				const archive = resolveArchiveLogFile(logPath, options.logFileName, dateDirectory, fileName);
+				const result = await executor.exec(buildGzipGrepCommand(options.keyword, archive.filePath));
+
+				if (isGrepError(result)) {
+					errors.push(`Search failed in ${archive.filePath}: ${result.stderr.trim() || `exit code ${result.exitCode}`}`);
+					continue;
+				}
+				const hits = result.exitCode === 1 ? [] : parseGrepOutput(result.stdout);
+				searchedSources.push({
+					server: server.name,
+					environment: server.environment,
+					type: "archive",
+					logFile: archive.filePath,
+					dateDirectory,
+					commandKind: "gzip_grep",
+					matched: hits.length > 0
+				});
+				if (result.exitCode === 1) continue;
+
+				for (const hit of hits) {
 					if (matches.length >= options.maxMatches) {
 						truncated = true;
 						break;
 					}
-					const archive = resolveArchiveLogFile(logPath, options.logFileName, dateDirectory, fileName);
-					const result = await executor.exec(buildGzipGrepCommand(options.keyword, archive.filePath));
-
-					if (isGrepError(result)) {
-						errors.push(`Search failed in ${archive.filePath}: ${result.stderr.trim() || `exit code ${result.exitCode}`}`);
-						continue;
-					}
-					if (result.exitCode === 1) continue;
-
-					for (const hit of parseGrepOutput(result.stdout)) {
-						if (matches.length >= options.maxMatches) {
-							truncated = true;
-							break;
-						}
-						matches.push({
-							server: server.name,
-							environment: server.environment,
-							logFile: archive.filePath,
-							lineInWindow: hit.lineInWindow,
-							matchedLine: hit.matchedLine,
-							timestamp: null
-						});
-					}
-					if (result.truncated || result.timedOut) {
-						errors.push(
-							result.timedOut
-								? `Search timed out in ${archive.filePath}`
-								: `Search output truncated in ${archive.filePath}`
-						);
-					}
+					matches.push({
+						server: server.name,
+						environment: server.environment,
+						logFile: archive.filePath,
+						lineInWindow: hit.lineInWindow,
+						matchedLine: hit.matchedLine,
+						timestamp: null
+					});
+				}
+				if (result.truncated || result.timedOut) {
+					errors.push(
+						result.timedOut
+							? `Search timed out in ${archive.filePath}`
+							: `Search output truncated in ${archive.filePath}`
+					);
 				}
 			}
 		}
+	}
 
-	return { server: server.name, environment: server.environment, matches, errors, truncated };
+	return { server: server.name, environment: server.environment, matches, searchedSources, errors, truncated };
 }
