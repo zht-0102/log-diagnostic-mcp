@@ -9,7 +9,7 @@ import { extractRequestParameters } from "../parsers/request.js";
 import { extractResponse } from "../parsers/response.js";
 import { extractMyBatisSql, type SqlExtraction } from "../parsers/mybatisSql.js";
 import { extractExceptions, type ExceptionExtraction } from "../parsers/exception.js";
-import { groupSaasEvents, summarizeSaasEvent } from "../parsers/saasLog.js";
+import { analyzeSaasEvent, groupSaasEvents, summarizeSaasEvent } from "../parsers/saasLog.js";
 import { analyzeBasics } from "../analyzer/basic.js";
 import { maskDeep } from "../security/sanitize.js";
 import { validateKeyword } from "../security/shellGuard.js";
@@ -346,6 +346,7 @@ function buildSaasEventPayload(
 		.slice(0, eventLimit)
 		.map((event) => {
 			const summary = summarizeSaasEvent(event);
+			const diagnosis = analyzeSaasEvent(event, summary);
 			return {
 				key: event.key,
 				traceId: event.traceId,
@@ -361,6 +362,7 @@ function buildSaasEventPayload(
 				tenant: summary.tenant,
 				exceptions: summary.exceptions,
 				keyMessages: summary.keyMessages,
+				diagnosis,
 				rawLines: includeRawLines ? event.entries.map((entry) => entry.line.raw) : undefined
 			};
 		});

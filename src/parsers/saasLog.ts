@@ -80,6 +80,12 @@ export interface SaasEventSummary {
 	keyMessages: string[];
 }
 
+export interface SaasEventDiagnosis {
+	confirmedFacts: string[];
+	possibleCauses: string[];
+	recommendations: string[];
+}
+
 const SAAS_LOG_RE =
 	/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(\w+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+--- \[([^\]]+)\]\s+(.+?)\s+:\s?(.*)$/;
 
@@ -335,4 +341,69 @@ export function summarizeSaasEvent(event: SaasLogEvent): SaasEventSummary {
 	}
 
 	return { payloads, sql, tenant, exceptions, keyMessages };
+}
+
+function pushUnique(values: string[], value: string): void {
+	if (!values.includes(value)) values.push(value);
+}
+
+function findInvalidDocumentDate(summary: SaasEventSummary): string | null {
+	const sources = [
+		...summary.keyMessages,
+		...summary.payloads.map((payload) => payload.rawSource),
+		...summary.exceptions.map((exception) => exception.message ?? "")
+	];
+	for (const source of sources) {
+		const match = /单据日期[:：](\d{4}-\d{2}-\d{2})不合法!输入日期应该在(\d{4}-\d{2}-\d{2})到(\d{4}-\d{2}-\d{2})/.exec(source);
+		if (match) {
+			return `单据日期:${match[1]} 不在允许区间 ${match[2]} 到 ${match[3]}`;
+		}
+	}
+	return null;
+}
+
+export function analyzeSaasEvent(
+	event: SaasLogEvent,
+	summary: SaasEventSummary
+): SaasEventDiagnosis {
+	const confirmedFacts: string[] = [];
+	const possibleCauses: string[] = [];
+	const recommendations: string[] = [];
+
+	const invalidDocumentDate = findInvalidDocumentDate(summary);
+	if (invalidDocumentDate) {
+		pushUnique(confirmedFacts, invalidDocumentDate);
+		pushUnique(possibleCauses, "业务日期不在当前允许的核算期或库存账期范围内。");
+		pushUnique(recommendations, "检查租户对应库房/库存模块的核算期设置，以及单据业务日期是否应调整。");
+	}
+
+	if (summary.keyMessages.some((message) => /任务回调处理失败，将任务数据写回原redis/.test(message))) {
+		pushUnique(confirmedFacts, "任务回调处理失败，日志显示任务数据已写回原redis等待后续处理。");
+		pushUnique(possibleCauses, "回调业务处理失败后触发任务重试或补偿流程。");
+		pushUnique(recommendations, "结合同一traceId的异常和回调返回JSON，确认失败是否会持续重试并造成重复处理。");
+	}
+
+	if (summary.tenant.warnings.length > 0) {
+		pushUnique(confirmedFacts, "未找到租户数据库或schema，日志存在租户路由WARN。");
+		pushUnique(possibleCauses, "租户路由上下文缺失，domain/cus/tenant 未正确传入或无法映射到数据库/schema。");
+		pushUnique(recommendations, "检查请求或任务上下文中的 domain/cus/tenant，并核对租户配置表与数据源路由配置。");
+	}
+
+	if (summary.exceptions.length > 0) {
+		for (const exception of summary.exceptions) {
+			const message = exception.message ? `: ${exception.message}` : "";
+			pushUnique(confirmedFacts, `异常：${exception.type}${message}`);
+		}
+	}
+
+	if (confirmedFacts.length === 0) {
+		pushUnique(confirmedFacts, `事件包含 ${event.entries.length} 条结构化日志，未命中内置SaaS业务诊断规则。`);
+		pushUnique(recommendations, "查看 keyMessages、payloads、sql 和 tenant 字段继续人工判断。");
+	}
+
+	if (possibleCauses.length === 0) {
+		pushUnique(possibleCauses, "未发现明确业务模式，需结合事件摘要继续确认。");
+	}
+
+	return { confirmedFacts, possibleCauses, recommendations };
 }

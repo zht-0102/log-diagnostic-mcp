@@ -4,7 +4,8 @@ import {
 	isSaasStackContinuation,
 	normalizePlaceholder,
 	groupSaasEvents,
-	summarizeSaasEvent
+	summarizeSaasEvent,
+	analyzeSaasEvent
 } from "../src/parsers/saasLog.js";
 
 describe("parseSaasLogLine", () => {
@@ -97,6 +98,36 @@ describe("summarizeSaasEvent", () => {
 			currentTraceId: "2832996880440973688"
 		});
 		expect(summary.exceptions[0].type).toBe("java.sql.SQLException");
+	});
+});
+
+describe("analyzeSaasEvent", () => {
+	it("diagnoses invalid document date and callback retry evidence", () => {
+		const event = groupSaasEvents([
+			"2026-08-13 13:03:48.575  INFO SKA00 app1 1 2832996880440973688 nosrt notimecost 0.0.0.0 nouser nodomain nouri --- [task-DealwithdatalinkTask-64] c.s.s.i.t.service.TransInterfaceImpl   : 单据日期不合法!输入日期应该在2026-07-01到2026-08-31",
+			"2026-08-13 13:03:48.576  INFO SKA00 app1 1 2832996880440973688 nosrt notimecost 0.0.0.0 nouser nodomain nouri --- [task-DealwithdatalinkTask-64] c.s.s.i.p.service.PosSaleInterfaceImpl : pos回调函数>>{\"MSG\":\"单据日期:2026-06-15不合法!输入日期应该在2026-07-01到2026-08-31\",\"STATUS\":\"ERR\"}",
+			"2026-08-13 13:03:48.577  INFO SKA00 app1 1 2832996880440973688 nosrt notimecost 0.0.0.0 nouser nodomain nouri --- [task-DealwithdatalinkTask-64] c.s.s.d.t.service.DealwithdatalinkTask : 任务回调处理失败，将任务数据写回原redis，调用类：com.sw.saas.inv.possale.service.PosSaleInterfaceImpl，方法：PosSaletoIvnStr"
+		])[0];
+
+		const diagnosis = analyzeSaasEvent(event, summarizeSaasEvent(event));
+
+		expect(diagnosis.confirmedFacts.join("\n")).toContain("单据日期:2026-06-15");
+		expect(diagnosis.possibleCauses.join("\n")).toContain("业务日期不在当前允许的核算期");
+		expect(diagnosis.recommendations.join("\n")).toContain("核算期");
+		expect(diagnosis.confirmedFacts.join("\n")).toContain("任务回调处理失败");
+	});
+
+	it("diagnoses missing tenant route warnings", () => {
+		const event = groupSaasEvents([
+			"2026-08-13 13:03:48.135  WARN SKA00 app1 1 notraceid nosrt notimecost 0.0.0.0 nouser nodomain nouri --- [pool-5-thread-1] c.sw.saas.datasource.RoutingDataSource   : can not find tenant database, domain:null, cus:null, tenant:null",
+			"2026-08-13 13:03:48.135  WARN SKA00 app1 1 notraceid nosrt notimecost 0.0.0.0 nouser nodomain nouri --- [pool-5-thread-1] com.sw.saas.datasource.SchemaDataSource  : can not find tenant db schma domain:null, cus:null"
+		])[0];
+
+		const diagnosis = analyzeSaasEvent(event, summarizeSaasEvent(event));
+
+		expect(diagnosis.confirmedFacts.join("\n")).toContain("未找到租户数据库或schema");
+		expect(diagnosis.possibleCauses.join("\n")).toContain("租户路由上下文缺失");
+		expect(diagnosis.recommendations.join("\n")).toContain("domain/cus/tenant");
 	});
 });
 

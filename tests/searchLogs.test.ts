@@ -255,6 +255,7 @@ describe("search_logs full pipeline (mock SSH)", () => {
 		expect(payload.saasEvents[0].payloads[1].label).toBe("pos回调函数");
 		expect(payload.saasEvents[0].sql[0].sql).toContain("SELECT aa.warehouse_id");
 		expect(payload.saasEvents[0].exceptions[0].type).toBe("java.sql.SQLException");
+		expect(payload.saasEvents[0].diagnosis.confirmedFacts.join("\n")).toContain("单据日期:2026-06-15");
 	});
 
 	it("returns null extractions and a no-match analysis when nothing hits", async () => {
