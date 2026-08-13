@@ -222,7 +222,117 @@ A：支持（`auth.type: password`），但生产环境强烈建议使用私钥 
 
 ## AI 客户端接入
 
-见下一节《AI 客户端接入指南》（Cursor / Claude Desktop / Claude Code / Codex）。
+本服务器使用标准 **stdio** 传输，任何支持 MCP 的客户端都能接入。启动命令统一为：
+
+```bash
+node /绝对路径/log-diagnostic-mcp/dist/index.js
+```
+
+> 请先完成 `npm install && npm run build` 与 `config/servers.yaml` 配置。
+> 客户端启动本服务器时的工作目录（cwd）决定了配置查找位置；
+> 若不想依赖 cwd，请在 `env` 中设置 `LOG_MCP_CONFIG` 指向配置文件绝对路径。
+
+以下配置格式以各客户端官方文档为准。
+
+### Cursor
+
+全局：`~/.cursor/mcp.json`；项目级：`<项目>/.cursor/mcp.json`。也可在 Settings → MCP 界面添加。
+
+```json
+{
+  "mcpServers": {
+    "log-diagnostic": {
+      "command": "node",
+      "args": ["/绝对路径/log-diagnostic-mcp/dist/index.js"],
+      "env": {
+        "LOG_MCP_CONFIG": "/绝对路径/log-diagnostic-mcp/config/servers.yaml"
+      }
+    }
+  }
+}
+```
+
+### Claude Desktop
+
+配置文件位置：
+- macOS：`~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows：`%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "log-diagnostic": {
+      "command": "node",
+      "args": ["/绝对路径/log-diagnostic-mcp/dist/index.js"],
+      "env": {
+        "LOG_MCP_CONFIG": "/绝对路径/log-diagnostic-mcp/config/servers.yaml"
+      }
+    }
+  }
+}
+```
+
+修改后完全退出并重启 Claude Desktop。
+
+### Claude Code
+
+命令行一键添加（scope 可选 `local` / `project` / `user`）：
+
+```bash
+claude mcp add log-diagnostic \
+  --env LOG_MCP_CONFIG=/绝对路径/log-diagnostic-mcp/config/servers.yaml \
+  -- node /绝对路径/log-diagnostic-mcp/dist/index.js
+```
+
+或在项目根目录手写 `.mcp.json`（团队共享，可提交到仓库——注意不要包含真实密钥）：
+
+```json
+{
+  "mcpServers": {
+    "log-diagnostic": {
+      "command": "node",
+      "args": ["/绝对路径/log-diagnostic-mcp/dist/index.js"],
+      "env": {
+        "LOG_MCP_CONFIG": "/绝对路径/log-diagnostic-mcp/config/servers.yaml"
+      }
+    }
+  }
+}
+```
+
+验证：`claude mcp list` 应显示 `log-diagnostic` 已连接。
+
+### OpenAI Codex CLI
+
+编辑 `~/.codex/config.toml`，顶层键为 `mcp_servers`：
+
+```toml
+[mcp_servers.log-diagnostic]
+command = "node"
+args = ["/绝对路径/log-diagnostic-mcp/dist/index.js"]
+
+[mcp_servers.log-diagnostic.env]
+LOG_MCP_CONFIG = "/绝对路径/log-diagnostic-mcp/config/servers.yaml"
+```
+
+### Windows 注意事项
+
+部分客户端在 Windows 上无法直接执行 `node`，可改用 `cmd` 包装：
+
+```json
+{
+  "command": "cmd",
+  "args": ["/c", "node", "C:\\绝对路径\\log-diagnostic-mcp\\dist\\index.js"]
+}
+```
+
+### 接入后如何验证
+
+在客户端里问一句：
+
+> 用 search_logs 查一下最近 30 分钟 prod 环境的 `searchShippingOrderSummary`
+
+能返回带 `query / matches / analysis` 的 JSON 即接入成功。
 
 ## License
 
