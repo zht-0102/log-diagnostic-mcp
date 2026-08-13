@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { registerSearchLogsTool } from "../tools/searchLogs.js";
+import { registerSearchLogsTool, type SearchLogsDependencies } from "../tools/searchLogs.js";
 
 export const SERVER_NAME = "log-diagnostic-mcp";
 export const SERVER_VERSION = "0.1.0";
@@ -8,7 +8,7 @@ export const SERVER_VERSION = "0.1.0";
  * Create the MCP server instance with all tools registered.
  * Kept as a factory so tests can construct isolated instances.
  */
-export function createServer(): McpServer {
+export function createServer(deps: SearchLogsDependencies = {}): McpServer {
 	const server = new McpServer(
 		{ name: SERVER_NAME, version: SERVER_VERSION },
 		{
@@ -20,7 +20,7 @@ export function createServer(): McpServer {
 		}
 	);
 
-	registerSearchLogsTool(server);
+	registerSearchLogsTool(server, deps);
 
 	return server;
 }
