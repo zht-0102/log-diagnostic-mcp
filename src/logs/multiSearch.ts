@@ -17,6 +17,8 @@ export interface MultiServerQuery {
 	serverNames?: string[];
 	/** 本次查询的单服务器命中上限。 */
 	maxMatchesPerServer: number;
+	/** 指定时只搜索该日志文件名。 */
+	logFileName?: string;
 }
 
 export interface MultiServerResult {
@@ -80,7 +82,8 @@ export async function searchMultipleServers(
 		toSearch.map((server) =>
 			searchSingleServer(executorFactory(server), server, config.limits, {
 				keyword: query.keyword,
-				maxMatches: query.maxMatchesPerServer
+				maxMatches: query.maxMatchesPerServer,
+				logFileName: query.logFileName
 			})
 		)
 	);

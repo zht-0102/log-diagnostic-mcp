@@ -45,6 +45,8 @@ export interface SearchOptions {
 	keyword: string;
 	/** 单台服务器收集到这么多命中后停止。 */
 	maxMatches: number;
+	/** 指定时只搜索该文件名，跳过目录内日志文件枚举。 */
+	logFileName?: string;
 }
 
 /** 每个配置路径最多扫描的日志文件数（最新的在前）。 */
@@ -87,6 +89,10 @@ async function listLogFiles(
 		.slice(0, MAX_FILES_PER_PATH);
 }
 
+function resolveFiles(options: SearchOptions): string[] | null {
+	return options.logFileName ? [options.logFileName] : null;
+}
+
 /**
  * 在一台服务器的所有已配置日志路径中搜索关键词。
  * executor 通过参数注入，方便测试替换为 mock 传输层。
@@ -109,7 +115,7 @@ export async function searchSingleServer(
 			break;
 		}
 
-		const files = await listLogFiles(executor, logPath, errors);
+		const files = resolveFiles(options) ?? (await listLogFiles(executor, logPath, errors));
 		for (const fileName of files) {
 			if (matches.length >= options.maxMatches) {
 				truncated = true;

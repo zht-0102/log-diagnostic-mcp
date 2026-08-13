@@ -230,10 +230,11 @@ describe("search_logs full pipeline (mock SSH)", () => {
 		];
 		const window = `${saasLines.join("\n")}\n`;
 		const grepOutput = `1:${saasLines[0]}\n2:${saasLines[1]}\n3:${saasLines[2]}`;
+		const commands: string[] = [];
 
 		const client = await connectClient({
 			loadConfiguration: fakeConfig,
-			createExecutor: (server) => scriptedExecutor({ window, grepOutput, server })
+			createExecutor: (server) => scriptedExecutor({ window, grepOutput, server, recordCommands: commands })
 		});
 
 		const result = await client.callTool({
@@ -256,6 +257,10 @@ describe("search_logs full pipeline (mock SSH)", () => {
 		expect(payload.saasEvents[0].sql[0].sql).toContain("SELECT aa.warehouse_id");
 		expect(payload.saasEvents[0].exceptions[0].type).toBe("java.sql.SQLException");
 		expect(payload.saasEvents[0].diagnosis.confirmedFacts.join("\n")).toContain("单据日期:2026-06-15");
+		expect(commands.some((command) => command.startsWith("ls -1t "))).toBe(false);
+		expect(commands.filter((command) => command.includes("| grep -n -F -e"))).toEqual([
+			"tail -n 20000 '/data/logs/shipping/saas.log' | grep -n -F -e '2832996880440973688'"
+		]);
 	});
 
 	it("returns null extractions and a no-match analysis when nothing hits", async () => {

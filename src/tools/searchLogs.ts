@@ -60,6 +60,12 @@ export const searchLogsInputSchema = {
 		.enum(["lines", "saas_event"])
 		.default("lines")
 		.describe("Return plain matched lines or aggregate ShenNong SaaS log events"),
+	logFileName: z
+		.string()
+		.regex(/^[\w.\-]+$/)
+		.max(100)
+		.optional()
+		.describe("Restrict search to one log file name under each configured logPath. Defaults to saas.log in saas_event mode"),
 	eventLimit: z
 		.number()
 		.int()
@@ -158,7 +164,8 @@ export async function runSearchLogs(
 			keyword: args.keyword,
 			environment: args.environment,
 			serverNames: args.serverNames,
-			maxMatchesPerServer: config.limits.maxLines
+			maxMatchesPerServer: config.limits.maxLines,
+			logFileName: args.logFileName ?? (args.mode === "saas_event" ? "saas.log" : undefined)
 		},
 		executorFor
 	);
@@ -287,6 +294,7 @@ export async function runSearchLogs(
 			contextBefore: args.contextBefore,
 			contextAfter: args.contextAfter,
 			mode: args.mode,
+			logFileName: args.logFileName ?? (args.mode === "saas_event" ? "saas.log" : null),
 			eventLimit: args.eventLimit,
 			includeRawLines: args.includeRawLines,
 			searchedServers: multi.searchedServers,
