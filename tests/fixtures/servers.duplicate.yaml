@@ -1,0 +1,19 @@
+servers:
+  - name: dup-01
+    environment: prod
+    host: 192.168.1.10
+    username: log-reader
+    auth:
+      type: private_key
+      privateKeyPath: ${TEST_SSH_KEY_PATH}
+    logPaths:
+      - /data/logs/app
+  - name: dup-01
+    environment: staging
+    host: 192.168.2.10
+    username: log-reader
+    auth:
+      type: private_key
+      privateKeyPath: ${TEST_SSH_KEY_PATH}
+    logPaths:
+      - /data/logs/app

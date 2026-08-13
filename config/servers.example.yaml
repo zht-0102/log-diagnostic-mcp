@@ -1,0 +1,56 @@
+# Example server configuration for log-diagnostic-mcp.
+#
+# Copy this file to `config/servers.yaml` and fill in real values.
+# `config/servers.yaml` and `.env` are gitignored — never commit real secrets.
+#
+# Values like ${SSH_PRIVATE_KEY} are expanded from environment variables
+# (loaded from .env via dotenv). If a referenced variable is missing,
+# startup fails fast with a clear error.
+
+limits:
+  # Maximum number of servers searched per query
+  maxServers: 10
+  # Maximum total matched lines returned per query
+  maxLines: 3000
+  # Per-server SSH command timeout (seconds)
+  timeoutSeconds: 30
+  # Maximum parallel SSH connections
+  maxConcurrentConnections: 5
+  # Only the tail N lines of each log file are scanned (never full history)
+  scanLines: 20000
+
+servers:
+  - name: shipping-prod-01
+    environment: prod
+    host: 192.168.1.10
+    port: 22
+    username: log-reader
+    auth:
+      type: private_key
+      # Path to the private key file, resolved from an environment variable
+      privateKeyPath: ${SSH_PRIVATE_KEY}
+    logPaths:
+      - /data/logs/shipping
+
+  - name: shipping-prod-02
+    environment: prod
+    host: 192.168.1.11
+    port: 22
+    username: log-reader
+    auth:
+      type: private_key
+      privateKeyPath: ${SSH_PRIVATE_KEY}
+    logPaths:
+      - /data/logs/shipping
+      - /data/logs/common
+
+  - name: shipping-staging-01
+    environment: staging
+    host: 192.168.2.10
+    port: 22
+    username: log-reader
+    auth:
+      type: private_key
+      privateKeyPath: ${SSH_PRIVATE_KEY_STAGING}
+    logPaths:
+      - /data/logs/shipping

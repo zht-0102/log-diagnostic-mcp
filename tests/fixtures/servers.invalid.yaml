@@ -1,0 +1,9 @@
+servers:
+  - name: bad-server
+    environment: prod
+    host: 192.168.1.10
+    port: 99999
+    username: log-reader
+    auth:
+      type: private_key
+    logPaths: []
