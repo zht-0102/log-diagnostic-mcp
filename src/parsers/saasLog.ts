@@ -24,6 +24,23 @@ export interface SaasLogLine {
 	raw: string;
 }
 
+export interface SaasLogEntry {
+	line: SaasLogLine;
+	continuations: string[];
+}
+
+export interface SaasLogEvent {
+	key: string;
+	traceId: string | null;
+	thread: string;
+	startTime: string;
+	endTime: string;
+	durationMs: number;
+	levels: string[];
+	loggers: string[];
+	entries: SaasLogEntry[];
+}
+
 const SAAS_LOG_RE =
 	/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(\w+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+--- \[([^\]]+)\]\s+(.+?)\s+:\s?(.*)$/;
 
@@ -71,4 +88,61 @@ export function parseSaasLogLine(line: string): SaasLogLine | null {
 		message: match[15],
 		raw: line
 	};
+}
+
+function eventKeyFor(line: SaasLogLine): string {
+	return line.traceId ? `trace:${line.traceId}` : `thread:${line.thread}`;
+}
+
+function timestampMs(value: string): number {
+	return Date.parse(`${value}Z`);
+}
+
+function uniqueValues(values: string[]): string[] {
+	return Array.from(new Set(values));
+}
+
+export function groupSaasEvents(lines: string[]): SaasLogEvent[] {
+	const events = new Map<string, SaasLogEvent>();
+	let lastEntry: SaasLogEntry | null = null;
+
+	for (const rawLine of lines) {
+		const parsed = parseSaasLogLine(rawLine);
+		if (!parsed) {
+			if (lastEntry && (isSaasStackContinuation(rawLine) || rawLine.trim().length > 0)) {
+				lastEntry.continuations.push(rawLine);
+			}
+			continue;
+		}
+
+		const key = eventKeyFor(parsed);
+		let event = events.get(key);
+		if (!event) {
+			event = {
+				key,
+				traceId: parsed.traceId,
+				thread: parsed.thread,
+				startTime: parsed.timestamp,
+				endTime: parsed.timestamp,
+				durationMs: 0,
+				levels: [],
+				loggers: [],
+				entries: []
+			};
+			events.set(key, event);
+		}
+
+		const entry = { line: parsed, continuations: [] };
+		event.entries.push(entry);
+		event.startTime =
+			timestampMs(parsed.timestamp) < timestampMs(event.startTime) ? parsed.timestamp : event.startTime;
+		event.endTime =
+			timestampMs(parsed.timestamp) > timestampMs(event.endTime) ? parsed.timestamp : event.endTime;
+		event.durationMs = Math.max(0, timestampMs(event.endTime) - timestampMs(event.startTime));
+		event.levels = uniqueValues([...event.levels, parsed.level]);
+		event.loggers = uniqueValues([...event.loggers, parsed.logger]);
+		lastEntry = entry;
+	}
+
+	return Array.from(events.values());
 }
