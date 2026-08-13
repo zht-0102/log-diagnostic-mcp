@@ -31,6 +31,22 @@ export function buildGrepTailCommand(scanLines: number, keyword: string, filePat
 	return `tail -n ${scanLines} ${shellQuote(filePath)} | grep -n -F -e ${shellQuote(keyword)}`;
 }
 
+/** `gzip -cd <file.gz> | grep -n -F -e <keyword>` —— 只读解压压缩日志并按字面量搜索。 */
+export function buildGzipGrepCommand(keyword: string, filePath: string): string {
+	validateLogPath(filePath);
+	validateKeyword(keyword);
+	return `gzip -cd ${shellQuote(filePath)} | grep -n -F -e ${shellQuote(keyword)}`;
+}
+
+/** `gzip -cd <file.gz> | tail -n <N>` —— 只读解压压缩日志并取最后 N 行上下文窗口。 */
+export function buildGzipTailCommand(scanLines: number, filePath: string): string {
+	validateLogPath(filePath);
+	if (!Number.isInteger(scanLines) || scanLines < 1) {
+		throw new Error(`Invalid scanLines: ${scanLines}`);
+	}
+	return `gzip -cd ${shellQuote(filePath)} | tail -n ${scanLines}`;
+}
+
 /**
  * `cat <file> | awk 'NR>=start && NR<=end'` ——
  * 读取文件的物理行区间 [fromLine, toLine]（含两端）。
