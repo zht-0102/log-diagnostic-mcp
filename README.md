@@ -52,8 +52,30 @@ Node.js 版本必须为 20 或更高。
 
 ### 2. 获取工程并安装依赖
 
+建议把本 MCP 克隆到一个固定工具目录，而不是某个业务项目目录。这样后续在 MCP 客户端中使用绝对路径配置后，它可以作为用户级全局工具被所有项目复用。
+
+示例目录：
+
+- Windows：`C:\tools\log-diagnostic-mcp`
+- macOS / Linux：`~/tools/log-diagnostic-mcp`
+
 ```powershell
-git clone https://github.com/18303364826/log-diagnostic-mcp.git
+git clone https://github.com/18303364826/log-diagnostic-mcp.git C:\tools\log-diagnostic-mcp
+cd C:\tools\log-diagnostic-mcp
+npm install
+```
+
+macOS / Linux：
+
+```bash
+git clone https://github.com/18303364826/log-diagnostic-mcp.git ~/tools/log-diagnostic-mcp
+cd ~/tools/log-diagnostic-mcp
+npm install
+```
+
+如果已经克隆到本地：
+
+```powershell
 cd log-diagnostic-mcp
 npm install
 ```
@@ -194,23 +216,37 @@ npm run build
 
 这些测试使用 mock SSH，不会连接真实生产服务器。安装阶段到此为止，不要自动执行 SSH 连通性测试或生产日志查询。
 
-## 交给 AI Coding 工具自动安装
+## 把仓库地址交给 AI 自动安装
 
-把下面的指令和本工程一起交给 AI Coding 工具。用户只需在 AI 初始化配置文件后填写真实服务器连接信息。
+本仓库是公共仓库。同事不需要先下载代码包，可以直接把仓库地址发给 Codex、Cursor、Claude Desktop 等 AI Coding 工具，让 AI 按 README 完成安装、构建和 MCP 客户端配置。
+
+使用前先明确两件事：
+
+1. AI 必须先询问用户要把项目克隆到哪个固定目录下，例如 `C:\tools\log-diagnostic-mcp` 或 `~/tools/log-diagnostic-mcp`。
+2. MCP 必须配置到当前客户端的用户级/全局 MCP 配置中，不能只写入某个业务项目的局部配置。这样安装后在其他项目里也能使用 `search_logs`。
+
+可以把下面整段指令发给 AI Coding 工具：
 
 ```text
-请完整阅读本项目根目录 README.md，并按“新用户首次安装”执行。
+请根据这个公共仓库的 README 安装并配置日志诊断 MCP：
+https://github.com/18303364826/log-diagnostic-mcp
+
+请先询问我要把项目克隆到哪个固定本地目录下。不要擅自选择业务项目目录；建议使用 C:\tools\log-diagnostic-mcp、~/tools/log-diagnostic-mcp 或我指定的其他长期目录。
+
+请完整阅读仓库根目录 README.md，并按“新用户首次安装”执行。
 
 执行边界：
 1. 检查 Node.js 20+、npm 和 Git。
-2. 安装依赖，但不要升级依赖版本。
-3. config/servers.yaml 或 .env 不存在时，从 example 文件复制；存在时绝不覆盖。
-4. 不读取、打印、提交或回显密码、私钥内容、Token 和真实日志。
-5. 只生成服务器配置模板，缺少 host、username、logPaths 或认证信息时停止并提示用户填写。
-6. 执行 npm test 和 npm run build。
-7. 按 README 为当前 MCP 客户端生成 stdio 配置，所有工程路径使用绝对路径。
-8. 安装阶段不得连接真实服务器，不得执行 search_logs。
-9. 完成后只报告本地安装、构建和 MCP 配置状态，以及仍需用户填写的字段。
+2. 将仓库克隆到我确认的固定目录，使这个 MCP 不依赖任何业务项目目录。
+3. 安装依赖，但不要升级依赖版本。
+4. config/servers.yaml 或 .env 不存在时，从 example 文件复制；存在时绝不覆盖。
+5. 不读取、打印、提交或回显密码、私钥内容、Token 和真实日志。
+6. 只生成服务器配置模板，缺少 host、username、logPaths 或认证信息时停止并提示用户填写。
+7. 执行 npm test 和 npm run build。
+8. 按 README 为当前 MCP 客户端生成 stdio 配置，所有工程路径使用绝对路径。
+9. MCP 配置必须写入当前客户端的用户级/全局配置，例如 Codex 的 ~/.codex/config.toml，不能只配置到某个项目。
+10. 安装阶段不得连接真实服务器，不得执行 search_logs。
+11. 完成后只报告本地安装、构建和 MCP 配置状态，以及仍需用户填写的字段。
 ```
 
 ## 启动方式
