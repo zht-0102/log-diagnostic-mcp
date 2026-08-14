@@ -337,6 +337,79 @@ Codex MCP 配置参考：[OpenAI Codex MCP documentation](https://developers.ope
 
 不同客户端的配置文件位置和字段支持可能不同，应以对应客户端官方文档为准。修改配置后通常需要重启 MCP 进程或客户端。
 
+## 卸载此 MCP
+
+卸载分为两步：先从 MCP 客户端的用户级/全局配置中移除本服务，再按需删除本地项目目录和私有配置文件。
+
+### 1. 从 MCP 客户端移除配置
+
+Codex Desktop、Codex CLI 和 Codex IDE 扩展：
+
+1. 打开 `~/.codex/config.toml`。
+2. 删除整个 `[mcp_servers.log_diagnostic]` 配置块。
+3. 如果存在 `[mcp_servers.log_diagnostic.env]`，也一并删除。
+4. 保存后在 Codex 的 MCP 设置中关闭该服务，或重启 Codex Desktop / Codex CLI。
+
+需要删除的 Codex 配置形态如下：
+
+```toml
+[mcp_servers.log_diagnostic]
+command = "cmd"
+args = ["/c", "npm", "start"]
+cwd = "D:\\tools\\log-diagnostic-mcp"
+startup_timeout_sec = 120
+
+[mcp_servers.log_diagnostic.env]
+LOG_MCP_CONFIG = "D:\\tools\\log-diagnostic-mcp\\config\\servers.yaml"
+```
+
+Cursor、Claude Desktop 等 JSON 配置客户端：
+
+1. 打开对应客户端的全局 MCP 配置文件。
+2. 删除 `mcpServers` 下的 `log-diagnostic` 服务对象。
+3. 保存后重启客户端，或按客户端界面重新加载 MCP 配置。
+
+需要删除的 JSON 配置形态如下：
+
+```json
+{
+  "mcpServers": {
+    "log-diagnostic": {
+      "command": "node",
+      "args": ["D:\\tools\\log-diagnostic-mcp\\dist\\index.js"],
+      "cwd": "D:\\tools\\log-diagnostic-mcp",
+      "env": {
+        "LOG_MCP_CONFIG": "D:\\tools\\log-diagnostic-mcp\\config\\servers.yaml"
+      }
+    }
+  }
+}
+```
+
+如果 `mcpServers` 下还有其他 MCP 服务，只删除 `log-diagnostic` 这一项，不要删除整个 `mcpServers`。
+
+### 2. 删除本地项目目录
+
+确认 MCP 客户端已经不再使用本服务后，可以删除安装目录。默认 Windows 安装目录示例：
+
+```powershell
+Remove-Item -LiteralPath "D:\tools\log-diagnostic-mcp" -Recurse -Force
+```
+
+macOS / Linux 示例：
+
+```bash
+rm -rf ~/tools/log-diagnostic-mcp
+```
+
+删除前确认目录中没有需要保留的本地配置。`config/servers.yaml` 和 `.env` 可能包含服务器地址、环境变量名或本地私钥路径引用；如果还要留作备份，应移动到安全位置，不要提交到 Git 或发到聊天中。
+
+### 3. 验证卸载
+
+1. 重启 MCP 客户端。
+2. 确认工具列表中不再出现 `search_logs`。
+3. 如果客户端仍显示该工具，检查是否还有其他用户级、工作区级或插件级 MCP 配置指向 `log-diagnostic-mcp`。
+
 ## `search_logs` 参数
 
 只有 `keyword` 必填。
