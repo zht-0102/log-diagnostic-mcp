@@ -52,16 +52,16 @@ Node.js 版本必须为 20 或更高。
 
 ### 2. 获取工程并安装依赖
 
-建议把本 MCP 克隆到一个固定工具目录，而不是某个业务项目目录。这样后续在 MCP 客户端中使用绝对路径配置后，它可以作为用户级全局工具被所有项目复用。
+建议把本 MCP 克隆到一个固定工具目录，而不是某个业务项目目录。克隆前应先确认用户希望使用的目录；如果用户没有指定，Windows 默认建议使用 `D:\tools\log-diagnostic-mcp`。这样后续在 MCP 客户端中使用绝对路径配置后，它可以作为用户级全局工具被所有项目复用。
 
 示例目录：
 
-- Windows：`C:\tools\log-diagnostic-mcp`
+- Windows 默认：`D:\tools\log-diagnostic-mcp`
 - macOS / Linux：`~/tools/log-diagnostic-mcp`
 
 ```powershell
-git clone https://github.com/18303364826/log-diagnostic-mcp.git C:\tools\log-diagnostic-mcp
-cd C:\tools\log-diagnostic-mcp
+git clone https://github.com/18303364826/log-diagnostic-mcp.git D:\tools\log-diagnostic-mcp
+cd D:\tools\log-diagnostic-mcp
 npm install
 ```
 
@@ -222,7 +222,7 @@ npm run build
 
 使用前先明确两件事：
 
-1. AI 必须先询问用户要把项目克隆到哪个固定目录下，例如 `C:\tools\log-diagnostic-mcp` 或 `~/tools/log-diagnostic-mcp`。
+1. AI 必须先询问用户要把项目克隆到哪个固定目录下；如果用户没有指定，Windows 默认使用 `D:\tools\log-diagnostic-mcp`，macOS / Linux 可建议 `~/tools/log-diagnostic-mcp`。
 2. MCP 必须配置到当前客户端的用户级/全局 MCP 配置中，不能只写入某个业务项目的局部配置。这样安装后在其他项目里也能使用 `search_logs`。
 
 可以把下面整段指令发给 AI Coding 工具：
@@ -231,7 +231,7 @@ npm run build
 请根据这个公共仓库的 README 安装并配置日志诊断 MCP：
 https://github.com/18303364826/log-diagnostic-mcp
 
-请先询问我要把项目克隆到哪个固定本地目录下。不要擅自选择业务项目目录；建议使用 C:\tools\log-diagnostic-mcp、~/tools/log-diagnostic-mcp 或我指定的其他长期目录。
+请先询问我要把项目克隆到哪个固定本地目录下。不要擅自选择业务项目目录；如果我没有指定，Windows 默认使用 D:\tools\log-diagnostic-mcp，macOS / Linux 可建议 ~/tools/log-diagnostic-mcp，或使用我指定的其他长期目录。
 
 请完整阅读仓库根目录 README.md，并按“新用户首次安装”执行。
 
