@@ -60,7 +60,7 @@ Node.js 版本必须为 20 或更高。
 - macOS / Linux：`~/tools/log-diagnostic-mcp`
 
 ```powershell
-git clone https://github.com/18303364826/log-diagnostic-mcp.git D:\tools\log-diagnostic-mcp
+git clone https://github.com/zht-0102/log-diagnostic-mcp.git D:\tools\log-diagnostic-mcp
 cd D:\tools\log-diagnostic-mcp
 npm install
 ```
@@ -68,7 +68,7 @@ npm install
 macOS / Linux：
 
 ```bash
-git clone https://github.com/18303364826/log-diagnostic-mcp.git ~/tools/log-diagnostic-mcp
+git clone https://github.com/zht-0102/log-diagnostic-mcp.git ~/tools/log-diagnostic-mcp
 cd ~/tools/log-diagnostic-mcp
 npm install
 ```
@@ -229,7 +229,7 @@ npm run build
 
 ```text
 请根据这个公共仓库的 README 安装并配置日志诊断 MCP：
-https://github.com/18303364826/log-diagnostic-mcp
+https://github.com/zht-0102/log-diagnostic-mcp.git
 
 请先询问我要把项目克隆到哪个固定本地目录下。不要擅自选择业务项目目录；如果我没有指定，Windows 默认使用 D:\tools\log-diagnostic-mcp，macOS / Linux 可建议 ~/tools/log-diagnostic-mcp，或使用我指定的其他长期目录。
 
