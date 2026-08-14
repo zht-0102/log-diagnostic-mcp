@@ -218,7 +218,7 @@ npm run build
 
 ## 把仓库地址交给 AI 自动安装
 
-本仓库是公共仓库。同事不需要先下载代码包，可以直接把仓库地址发给 Codex、Cursor、Claude Desktop 等 AI Coding 工具，让 AI 按 README 完成安装、构建和 MCP 客户端配置。
+本仓库是公共仓库。用户不需要先下载代码包，可以直接把仓库地址发给 Codex、Cursor、Claude Desktop 等 AI Coding 工具，让 AI 按 README 完成安装、构建和 MCP 客户端配置。
 
 使用前先明确两件事：
 
