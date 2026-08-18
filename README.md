@@ -183,6 +183,8 @@ SSH_PASSWORD_STAGING=replace-with-your-password
 | 私钥认证引用 | `config/servers.yaml` | `privateKeyPath: ${SSH_PRIVATE_KEY}` |
 | 日志目录 | `config/servers.yaml` 的 `logPaths` | `- /home/logdir/log/<service>` |
 
+如果用户提供日志根目录，例如 `/home/logdir/log`，并要求把该目录下所有服务配置进 YAML，应在服务器连接信息完整且用户明确授权后，通过只读方式获取该目录下真实存在的一级子目录，再把每个子目录的绝对路径写入对应服务器的 `logPaths`。不要只按截图或示例文本抄目录名，也不要默认把 `/home/logdir/log` 本身或服务器 `/` 根目录配置进去；缺少 SSH 连接信息、目录权限或用户授权时应停止并提示用户补充。
+
 密码认证的完整通用示例：
 
 ```yaml
@@ -242,11 +244,12 @@ https://github.com/zht-0102/log-diagnostic-mcp.git
 4. config/servers.yaml 或 .env 不存在时，从 example 文件复制；存在时绝不覆盖。
 5. 不读取、打印、提交或回显密码、私钥内容、Token 和真实日志。
 6. 只生成服务器配置模板，缺少 host、username、logPaths 或认证信息时停止并提示用户填写。
-7. 执行 npm test 和 npm run build。
-8. 按 README 为当前 MCP 客户端生成 stdio 配置，所有工程路径使用绝对路径。
-9. MCP 配置必须写入当前客户端的用户级/全局配置，例如 Codex 的 ~/.codex/config.toml，不能只配置到某个项目。
-10. 安装阶段不得连接真实服务器，不得执行 search_logs。
-11. 完成后只报告本地安装、构建和 MCP 配置状态，以及仍需用户填写的字段。
+7. 如果我已经提供完整服务器连接信息、日志根目录（例如 /home/logdir/log），并明确要求“将此目录下的所有子目录配置到 yaml 中”，可以只执行列目录类只读命令获取该日志根目录下真实存在的一级子目录，并将这些绝对路径写入 config/servers.yaml 的 logPaths；不要根据截图死板抄目录名，不要扫描服务器 / 根目录，不要读取日志内容。
+8. 执行 npm test 和 npm run build。
+9. 按 README 为当前 MCP 客户端生成 stdio 配置，所有工程路径使用绝对路径。
+10. MCP 配置必须写入当前客户端的用户级/全局配置，例如 Codex 的 ~/.codex/config.toml，不能只配置到某个项目。
+11. 安装阶段除第 7 条的用户明确授权列目录外，不得连接真实服务器，不得执行 search_logs。
+12. 完成后只报告本地安装、构建和 MCP 配置状态，以及仍需用户填写的字段。
 ```
 
 ## 启动方式
